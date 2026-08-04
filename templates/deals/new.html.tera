@@ -12,77 +12,166 @@
       Connect wallet
     </button>
   </p>
+  <p class="app-ctl__hint app-ctl__hint--solo">Connect your wallet first. Then you can create a listing.</p>
   {% else %}
   <section class="app-form app-form--listing">
     <h1 class="app-form__title">Add listing</h1>
+    <p class="app-form__lead">
+      Fill step by step. Grey chips are not available yet — press only the bright ones.
+    </p>
     <form class="ds-dialog__form listing-form" id="listing-form" data-listing-form>
-      {# ── Side ─────────────────────────────────────────────────── #}
-      {% <chips name="listing_side" label="Side" selected={listing_side} data_type="string" required={true}> %}
-        {{ <chip value="offer" label="Offer" selected={listing_side != "request"} /> }}
-        {{ <chip value="request" label="Request" selected={listing_side == "request"} /> }}
-      {% </chips> %}
 
-      {# ── Type: only IP live; rest grey / disabled ─────────────── #}
-      {% <chips name="asset_type" label="Type" selected="" data_type="string" required={true}
-                error_required="pick a type"> %}
-        {{ <chip value="ip" label="IP" /> }}
-        <button type="button" class="ds-chip is-disabled" disabled title="Soon">Domain</button>
-        <button type="button" class="ds-chip is-disabled" disabled title="Soon">Property</button>
-        <button type="button" class="ds-chip is-disabled" disabled title="Soon">Work</button>
-        <button type="button" class="ds-chip is-disabled" disabled title="Soon">Other</button>
-      {% </chips> %}
+      {# ── Side ─────────────────────────────────────────────────── #}
+      <div class="app-ctl">
+        {% <chips name="listing_side" label="1. Side" selected={listing_side} data_type="string" required={true}> %}
+          {{ <chip value="offer" label="Offer" selected={listing_side != "request"} /> }}
+          {{ <chip value="request" label="Request" selected={listing_side == "request"} /> }}
+        {% </chips> %}
+        <p class="app-ctl__hint">
+          <strong>Offer</strong> = you sell (you have IP and want money).
+          <strong>Request</strong> = you buy (you want IP and will pay).
+          Tap one chip.
+        </p>
+      </div>
+
+      {# ── Type ─────────────────────────────────────────────────── #}
+      <div class="app-ctl">
+        {% <chips name="asset_type" label="2. Type" selected="" data_type="string" required={true}
+                  error_required="tap IP — other types are not ready"> %}
+          {{ <chip value="ip" label="IP" /> }}
+          <button type="button" class="ds-chip is-disabled" disabled title="Not available yet">Domain</button>
+          <button type="button" class="ds-chip is-disabled" disabled title="Not available yet">Property</button>
+          <button type="button" class="ds-chip is-disabled" disabled title="Not available yet">Work</button>
+          <button type="button" class="ds-chip is-disabled" disabled title="Not available yet">Other</button>
+        {% </chips> %}
+        <p class="app-ctl__hint">
+          Tap <strong>IP</strong> to continue. Grey chips (Domain, Property…) are locked for now — do not wait for them.
+        </p>
+      </div>
 
       {# Revealed only after type is chosen #}
       <div class="listing-rest" data-listing-rest hidden>
 
         {# ── IP-specific ───────────────────────────────────────── #}
         <div class="listing-ip" data-listing-ip hidden>
-          <p class="app-form__section">IP parameters</p>
+          <p class="app-form__section">About this IP block</p>
+          <p class="app-form__section-hint">Only these fields for IP. Answer each line.</p>
 
-          {% <chips name="resource_kind" label="Kind" selected="PI" data_type="string" required={true}> %}
-            {{ <chip value="PI" label="PI" selected={true} /> }}
-            {{ <chip value="PA" label="PA" /> }}
-          {% </chips> %}
+          <div class="app-ctl">
+            {% <chips name="resource_kind" label="3. Kind" selected="PI" data_type="string" required={true}> %}
+              {{ <chip value="PI" label="PI" selected={true} /> }}
+              {{ <chip value="PA" label="PA" /> }}
+            {% </chips> %}
+            <p class="app-ctl__hint">
+              <strong>PI</strong> = Provider Independent (your own assignment).
+              <strong>PA</strong> = Provider Aggregatable (from an LIR/ISP).
+              If unsure, leave <strong>PI</strong>.
+            </p>
+          </div>
 
-          {{ <field name="geo" type="text" label="Geo" placeholder="Country / region" /> }}
+          <div class="app-ctl">
+            {{ <field name="geo" type="text" label="4. Geo" placeholder="e.g. Germany, EU, US-East" /> }}
+            <p class="app-ctl__hint">
+              Where this IP is used or registered. Country or region in plain words. Example: <em>Germany</em>.
+            </p>
+          </div>
 
-          {% <chips name="operator" label="Operator" selected="RIPE" data_type="string" required={true}> %}
-            {{ <chip value="RIPE" label="RIPE" selected={true} /> }}
-            {{ <chip value="ASN" label="ASN" /> }}
-          {% </chips> %}
+          <div class="app-ctl">
+            {% <chips name="operator" label="5. Registry" selected="RIPE" data_type="string" required={true}> %}
+              {{ <chip value="RIPE" label="RIPE" selected={true} /> }}
+              {{ <chip value="ASN" label="ASN" /> }}
+            {% </chips> %}
+            <p class="app-ctl__hint">
+              Who holds the record. <strong>RIPE</strong> = European IP registry (most EU blocks).
+              <strong>ASN</strong> = you care about the autonomous system number.
+              Most people tap <strong>RIPE</strong>.
+            </p>
+          </div>
 
-          {% <chips name="size" label="Size" selected="24" data_type="string" required={true}> %}
-            {{ <chip value="22" label="/22" /> }}
-            {{ <chip value="23" label="/23" /> }}
-            {{ <chip value="24" label="/24" selected={true} /> }}
-            {{ <chip value="20" label="/20" /> }}
-            {{ <chip value="19" label="/19" /> }}
-            {{ <chip value="18" label="/18" /> }}
-            {{ <chip value="16" label="/16" /> }}
-          {% </chips> %}
+          <div class="app-ctl">
+            {% <chips name="size" label="6. Size" selected="24" data_type="string" required={true}> %}
+              {{ <chip value="22" label="/22" /> }}
+              {{ <chip value="23" label="/23" /> }}
+              {{ <chip value="24" label="/24" selected={true} /> }}
+              {{ <chip value="20" label="/20" /> }}
+              {{ <chip value="19" label="/19" /> }}
+              {{ <chip value="18" label="/18" /> }}
+              {{ <chip value="16" label="/16" /> }}
+            {% </chips> %}
+            <p class="app-ctl__hint">
+              How big the block is. <strong>/24</strong> ≈ 256 addresses (common).
+              Smaller number = bigger block (/16 is huge). Tap the size you sell or want.
+            </p>
+          </div>
 
-          {{ <toggle name="is_public" label="Public" checked={true} /> }}
-          {{ <field name="prefix" type="text" label="Network" placeholder="176.120.88.0 or 176.120.88.0/24" required={true} /> }}
+          <div class="app-ctl">
+            {{ <toggle name="is_public" label="7. Public listing" checked={true} /> }}
+            <p class="app-ctl__hint">
+              <strong>ON</strong> = everyone sees this on the market board.
+              <strong>OFF</strong> = only you (draft-style). Leave ON if you want buyers.
+            </p>
+          </div>
+
+          <div class="app-ctl">
+            {{ <field name="prefix" type="text" label="8. Network" placeholder="176.120.88.0" required={true}
+                       error_required="type the network address" /> }}
+            <p class="app-ctl__hint">
+              The IP network itself. Example: <em>176.120.88.0</em>.
+              You can write only the network — size from step 6 is added automatically.
+              Or write full CIDR: <em>176.120.88.0/24</em>.
+            </p>
+          </div>
         </div>
 
         {# ── Common ────────────────────────────────────────────── #}
-        <p class="app-form__section">Listing</p>
+        <p class="app-form__section">What people will read</p>
+        <p class="app-form__section-hint">Text, price, files. Same for every type.</p>
 
-        {{ <wysiwyg name="del_title" label="Description" height={180} /> }}
+        <div class="app-ctl">
+          {{ <wysiwyg name="del_title" label="9. Description" height={180} /> }}
+          <p class="app-ctl__hint">
+            Explain the deal in normal language: what it is, why it is good.
+            Bold/italic ok. This is what shows on the board (as plain text).
+          </p>
+        </div>
 
-        {{ <fixed_n name="del_amount" label="Price USDC" scale={8} input_scale={0}
-                    raw={0} placeholder="1500" suffix="USDC" /> }}
+        <div class="app-ctl">
+          {{ <fixed_n name="del_amount" label="10. Price" scale={8} input_scale={0}
+                      raw={0} placeholder="1500" suffix="USDC" /> }}
+          <p class="app-ctl__hint">
+            Total price in <strong>USDC</strong>. Whole dollars only — no cents, no dot.
+            Type <em>1500</em> for one thousand five hundred USDC.
+          </p>
+        </div>
 
-        {{ <wysiwyg name="del_note" label="Terms" height={160} /> }}
+        <div class="app-ctl">
+          {{ <wysiwyg name="del_note" label="11. Terms" height={160} /> }}
+          <p class="app-ctl__hint">
+            Rules of the deal: who pays fees, deadlines, what happens if proof fails.
+            If nothing special — write <em>Standard escrow terms</em>.
+          </p>
+        </div>
 
-        {{ <file_upload name="attachments" label="Files" multiple={true}
-                        hint="Drop files here or click to choose" accept=".pdf,.zip,.png,.jpg,.jpeg,.txt" /> }}
+        <div class="app-ctl">
+          {{ <file_upload name="attachments" label="12. Files (optional)" multiple={true}
+                          hint="Drop files here or click to choose"
+                          accept=".pdf,.zip,.png,.jpg,.jpeg,.txt" /> }}
+          <p class="app-ctl__hint">
+            Attach proof papers if you have them (PDF, zip, image). Optional — you can publish without files.
+          </p>
+        </div>
 
         {{ <hidden name="publish" value="true" /> }}
 
-        <div class="app-form__actions">
-          {{ <button label="Publish" type="submit" variant="primary" handler="deals_save" /> }}
-          <a class="app-top__btn" href="/deals/">Cancel</a>
+        <div class="app-ctl app-ctl--actions">
+          <div class="app-form__actions">
+            {{ <button label="Publish to market" type="submit" variant="primary" handler="deals_save" /> }}
+            <a class="app-top__btn" href="/deals/">Cancel</a>
+          </div>
+          <p class="app-ctl__hint">
+            <strong>Publish to market</strong> puts the listing on the board for others.
+            <strong>Cancel</strong> goes back without saving.
+          </p>
         </div>
       </div>
     </form>

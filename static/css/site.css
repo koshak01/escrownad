@@ -383,13 +383,20 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   max-width: 760px;
 }
 .app-form__title {
-  margin: 0 0 12px;
+  margin: 0 0 6px;
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
+.app-form__lead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  max-width: 40rem;
+}
 .app-form__section {
-  margin: 18px 0 10px;
+  margin: 18px 0 4px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
   font-size: 11px;
@@ -398,11 +405,52 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   text-transform: uppercase;
   color: var(--muted);
 }
+.app-form__section-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
 .app-form__actions {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 4px;
+}
+
+/* idiot-proof hint under every control */
+.app-ctl {
+  margin-bottom: 16px;
+}
+.app-ctl .ds-field {
+  margin-bottom: 0;
+}
+.app-ctl__hint {
+  margin: 6px 0 0;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  max-width: 40rem;
+}
+.app-ctl__hint strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.app-ctl__hint em {
+  font-style: normal;
+  font-family: ui-monospace, monospace;
+  font-size: 0.95em;
+  color: var(--fg);
+  opacity: 0.9;
+}
+.app-ctl__hint--solo {
+  margin-top: 8px;
+}
+.app-ctl--actions {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 /* product chips: disabled (soon) types */
