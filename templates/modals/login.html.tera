@@ -14,13 +14,29 @@
   </form>
 
   <div class="wallet-login">
-    <p class="wallet-login__or">или</p>
-    <button type="button"
-            class="ds-btn"
-            data-wallet-connect
-            data-redirect-after="{{ redirect_after }}">
-      Кошелёк (MetaMask)
-    </button>
+    <p class="wallet-login__or">или кошелёк</p>
+    <div class="wallet-login__btns">
+      <button type="button"
+              class="ds-btn"
+              data-wallet-connect
+              data-wallet-prefer="phantom"
+              data-redirect-after="{{ redirect_after }}">
+        Phantom
+      </button>
+      <button type="button"
+              class="ds-btn"
+              data-wallet-connect
+              data-wallet-prefer="metamask"
+              data-redirect-after="{{ redirect_after }}">
+        MetaMask
+      </button>
+      <button type="button"
+              class="ds-btn"
+              data-wallet-connect
+              data-redirect-after="{{ redirect_after }}">
+        Другой
+      </button>
+    </div>
     <p class="wallet-login__status muted" data-wallet-status></p>
   </div>
 </div>

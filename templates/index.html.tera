@@ -10,7 +10,7 @@
    CSS — ТОЛЬКО файлом (`landing.css`). Inline `<style>` запрещён
    (design_baseline §5: прод-CSP режет его молча).
 
-   Auth: login/password (forge modal) + MetaMask wallet (data-wallet-connect).
+   Auth: login/password + EVM wallet (Phantom / MetaMask / any EIP-1193).
    Redirect после входа: /cabinet/ (продукт), не /admin/.
 
    Cover: static/images/cover.webp (Дедал, vault + violet speed, left dark). #}
@@ -52,6 +52,7 @@
         <a href="/cabinet/">Войти</a>
       {% else %}
         <button type="button" data-modal="login" data-redirect-after="/cabinet/">Войти</button>
+        <button type="button" class="enter-secondary" data-wallet-connect data-wallet-prefer="phantom" data-redirect-after="/cabinet/">Phantom</button>
         <button type="button" class="enter-secondary" data-wallet-connect data-redirect-after="/cabinet/">Кошелёк</button>
       {% endif %}
     </div>
