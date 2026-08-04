@@ -1,56 +1,97 @@
 # EscrowNad
 
-Proof-escrow / oracle-escrow on **Monad**. Money stays locked until an external
-oracle confirms the condition. First asset module: **IPv4 (RIPE PA + PI)**.
+Proof-escrow on **Monad**: funds release when an external oracle confirms the
+condition. First asset: **IPv4 (RIPE PA + PI)**.
 
-| | |
-|---|---|
-| Peer | `escrownad` / **Янус** |
-| Domain / DB | `escrownad.com` |
-| Chain (demo) | **Monad only** |
-| Stack | forge (4 bins) + observer + EscrowLock.sol |
+Forge app (skeleton pattern). Peer: **Янус** (`escrownad`). Domain/DB:
+`escrownad.com`.
 
-## Dev
+## Layout (forge)
+
+```
+escrownad/
+├── Cargo.toml
+├── src/
+│   ├── lib.rs              # APP_NAME, sockets, DbCommand/DbResponse
+│   ├── models/             # Demo (эталон) + Deal
+│   ├── pages/              # index, deals, oracle + admin/demos
+│   ├── observer/           # RIPE PA+PI match
+│   ├── chain/              # mock lock txs (live later)
+│   └── bin/
+│       ├── database.rs
+│       ├── notifier.rs
+│       ├── ws.rs
+│       ├── web.rs
+│       └── observer.rs
+├── etc/                    # database / notifier / ws / web / redis
+├── templates/
+├── static/                 # css + brand/
+├── seeds/                  # forge.sql, demos.sql, deals.sql
+├── contracts/EscrowLock.sol
+└── deploy/
+```
+
+Side-by-side with forge:
+
+```
+~/work/rust/
+├── forge/
+└── escrownad/
+```
+
+## Dev (ports 4100 / 4101)
 
 ```bash
-# ports: web 4100, ws 4101
+# schema once (DB escrownad.com already exists)
+psql -h 127.0.0.1 -U html -d 'escrownad.com' -f ../forge/docs/db_schema.sql
+psql -h 127.0.0.1 -U html -d 'escrownad.com' \
+  -v admin_email="adm@escrownad.com" -v admin_pass="$(tr -d '\n' < pass.txt)" \
+  -f seeds/forge.sql
+psql -h 127.0.0.1 -U html -d 'escrownad.com' -f seeds/demos.sql -f seeds/deals.sql
+
 cargo build --bins
+# order: database → notifier → ws → web
 ./target/debug/escrownad-database &
 ./target/debug/escrownad-notifier &
 ./target/debug/escrownad-ws &
 ./target/debug/escrownad-web &
-
 # or: mprocs
 ```
 
-- Site: <http://localhost:4100/>
-- Admin: <http://localhost:4100/admin/>
-- DB: `psql -h 127.0.0.1 -U html -d 'escrownad.com'`
-
-### Admin login (dev)
-
 | | |
 |---|---|
-| email | `adm@escrownad.com` |
-| password | local `pass.txt` (not in git) |
+| Site | http://localhost:4100/ |
+| Deals | http://localhost:4100/deals/ |
+| Oracle | http://localhost:4100/oracle/ |
+| Admin | http://localhost:4100/admin/ |
+| Login | `adm@escrownad.com` — password in local `pass.txt` (not in git) |
 
-## Product (v1)
+## Demo path (hackathon / video)
 
-1. Seller lists an IP block + proof-of-holdership condition (RIPE).
-2. Buyer picks a deal and deposits into the on-chain lock.
-3. Observer watches RIPE transfer tables (PA + PI JSON).
-4. Fact match → release to seller; timeout → refund.
-
-### Observer
+1. Open http://localhost:4100/ — brand + links  
+2. http://localhost:4100/oracle/ — what is the oracle  
+3. http://localhost:4100/deals/ — list (open + released)  
+4. Open a deal card — status / checklist / release_tx  
+5. Reset a deal to `awaiting_proof` and run observer:
 
 ```bash
-OBSERVER_ONCE=1 cargo run --bin escrownad-observer
+psql -h 127.0.0.1 -U html -d 'escrownad.com' -c \
+  "UPDATE deals SET del_status='awaiting_proof', release_tx=NULL, ripe_match_key=NULL
+   WHERE prefix='176.120.88.0/21';"
+OBSERVER_ONCE=1 ./target/debug/escrownad-observer
+# reload deal card → status released, release_tx mock:ripe:…
 ```
 
-### Monad lock
+6. Admin login → core forge CRUD still works  
 
-- Solidity: `contracts/EscrowLock.sol` (`fund` / `release` / `refund` / `refundAfterDeadline`)
-- Rust: `src/chain/` — default `CHAIN_MODE=mock` (`mock:ripe:…` txs)
-- Live deploy: Foundry on Monad testnet when `forge` is available
+## Product flow
 
-See `PROJECT.md` for full product context.
+1. Seller lists IP block (PA|PI) + from/to condition  
+2. Buyer funds on-chain lock (Monad; mock txs until deploy)  
+3. `escrownad-observer` polls RIPE PA + PI JSON  
+4. Match → release seller; timeout → refund  
+
+Contract source: `contracts/EscrowLock.sol`. Live deploy needs Foundry + Monad
+testnet keys (not required for mock demo video).
+
+See `PROJECT.md` for product context.
