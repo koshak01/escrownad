@@ -4,10 +4,12 @@
    Полный набор: .ico для краулеров (Google s2 SVG не ест), SVG для
    современных браузеров, PNG fallback, apple-touch для iOS. #}
 {% block favicon %}
-{# White-bg vault (dark-on-dark tab was unreadable). Salt busts immutable cache. #}
-<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg?v={{ salt }}">
+{# Canonical mark = vault+bolt (brand/icon.png → apple-touch). Not N monogram. #}
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
 <link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/images/icon-192.png?v={{ salt }}">
 <link rel="icon" href="/static/images/favicon-app.ico?v={{ salt }}" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/static/images/favicon-vault.svg?v={{ salt }}">
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
 {% endblock %}
+

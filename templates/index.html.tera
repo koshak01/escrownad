@@ -21,12 +21,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EscrowNad</title>
   <meta name="robots" content="noindex">
-  {# White-bg vault favicon (visible on dark tab chrome). Salt busts immutable cache. #}
-  <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg?v={{ salt }}">
-  <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
-  <link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
-  <link rel="icon" href="/static/images/favicon-app.ico?v={{ salt }}" sizes="any">
-  <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
+{# Canonical mark = vault+bolt (brand/icon.png → apple-touch). Not N monogram. #}
+<link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/images/icon-192.png?v={{ salt }}">
+<link rel="icon" href="/static/images/favicon-app.ico?v={{ salt }}" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/static/images/favicon-vault.svg?v={{ salt }}">
+<link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
   {# Mulish — шрифт коллектива. Standalone-лендинг грузит сам (не через _base_core). #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,7 +40,7 @@
   <div class="wrap">
     <div class="mark">
       {# Знак — sealed vault + proof (Дедал). Пока SVG из brand pack. #}
-      <img class="seal" src="/static/images/mark.svg?v={{ salt }}" alt="" width="36" height="36">
+      <img class="seal" src="/static/images/mark.png?v={{ salt }}" alt="" width="36" height="36">
       <span>ESCROW<b>·</b>NAD</span>
     </div>
     <h1 class="lead">Settle on proof.</h1>
