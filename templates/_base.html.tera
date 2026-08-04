@@ -4,9 +4,10 @@
    Полный набор: .ico для краулеров (Google s2 SVG не ест), SVG для
    современных браузеров, PNG fallback, apple-touch для iOS. #}
 {% block favicon %}
-<link rel="icon" href="/favicon.ico" sizes="any">
+{# White-bg vault (dark-on-dark tab was unreadable). Salt busts immutable cache. #}
 <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg?v={{ salt }}">
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
 <link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
+<link rel="icon" href="/static/images/favicon.ico?v={{ salt }}" sizes="any">
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
 {% endblock %}
