@@ -62,14 +62,12 @@
   text-transform: uppercase;
   color: var(--muted);
 }
-.wallet-login__btns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: center;
+.wallet-login__hint {
+  margin-top: 0.5rem;
+  font-size: 12px;
 }
 .wallet-login__status {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   font-size: 13px;
   min-height: 1.2em;
 }

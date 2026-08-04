@@ -1,39 +1,22 @@
-{# escrownad — приватная заставка (канон закрытых приложений).
-
-   Паттерн коллектива (Око / Кайрос / Плутос / Nexus): одна страница —
-   знак, слоган, кнопка «Войти». Публичного продуктового лендинга нет:
-   внутрь — только по учётной записи. Кабинет/Search/Oracle — после входа.
-
-   Standalone (без `extends _base_core`) — как у Ока/Кайроса: шапка/меню/футер
-   ядра тут не нужны. Mulish и CSS грузятся явно.
-
-   CSS — ТОЛЬКО файлом (`landing.css`). Inline `<style>` запрещён
-   (design_baseline §5: прод-CSP режет его молча).
-
-   Auth: login/password + EVM wallet (Phantom / MetaMask / any EIP-1193).
-   Redirect после входа: /cabinet/ (продукт), не /admin/.
-
-   Cover: static/images/cover.webp (Дедал, vault + violet speed, left dark). #}
+{# escrownad — private closed-app splash (Kairos/Oculus canon).
+   EN only (public/hackathon surface). Auth: password modal + one wallet button. #}
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EscrowNad</title>
   <meta name="robots" content="noindex">
-{# Canonical mark = vault+bolt (brand/icon.png → apple-touch). Not N monogram. #}
-<link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
-<link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
-<link rel="icon" type="image/png" sizes="192x192" href="/static/images/icon-192.png?v={{ salt }}">
-<link rel="icon" href="/static/images/favicon-app.ico?v={{ salt }}" sizes="any">
-<link rel="icon" type="image/svg+xml" href="/static/images/favicon-vault.svg?v={{ salt }}">
-<link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
-  {# Mulish — шрифт коллектива. Standalone-лендинг грузит сам (не через _base_core). #}
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/images/icon-192.png?v={{ salt }}">
+  <link rel="icon" href="/static/images/favicon-app.ico?v={{ salt }}" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/static/images/favicon-vault.svg?v={{ salt }}">
+  <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mulish:wght@200;300;400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/static/css/tokens.css?v={{ salt }}">
-  {# base — ds-dialog login modal (password). landing stays dark overlay. #}
   <link rel="stylesheet" href="/shared/css/base.css?v={{ salt }}">
   <link rel="stylesheet" href="/shared/css/toast.css?v={{ salt }}">
   <link rel="stylesheet" href="/static/css/landing.css?v={{ salt }}">
@@ -46,21 +29,19 @@
       <span>ESCROW<b>·</b>NAD</span>
     </div>
     <h1 class="lead">Settle on proof.</h1>
-    <p class="sub">Доступ — по учётной записи или кошельку.</p>
+    <p class="sub">Access by account or wallet.</p>
     <div class="enter enter--row">
       {% if user %}
-        <a href="/cabinet/">Войти</a>
+        <a href="/cabinet/">Enter</a>
       {% else %}
-        <button type="button" data-modal="login" data-redirect-after="/cabinet/">Войти</button>
-        <button type="button" class="enter-secondary" data-wallet-connect data-wallet-prefer="phantom" data-redirect-after="/cabinet/">Phantom</button>
-        <button type="button" class="enter-secondary" data-wallet-connect data-redirect-after="/cabinet/">Кошелёк</button>
+        <button type="button" data-modal="login" data-redirect-after="/cabinet/">Sign in</button>
+        <button type="button" class="enter-secondary" data-wallet-connect data-redirect-after="/cabinet/">Connect wallet</button>
       {% endif %}
     </div>
     <p class="sub" data-wallet-status></p>
   </div>
-  <div class="foot">© EscrowNad · приватный доступ · Monad</div>
+  <div class="foot">© EscrowNad · private access · Monad</div>
 
-  {# Аноним: WS + login modal + wallet (personal_sign). #}
   {% if not user %}
   <input type="hidden" id="ws_url" value="{{ ws_url }}">
   <div id="toast-root"></div>

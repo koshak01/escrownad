@@ -1,42 +1,26 @@
-{# Project login modal — password first, wallet second (operator canon).
-   Overrides forge/templates/modals/login.html.tera via project templates root. #}
+{# Login modal — EN only. Password first; one wallet connect (Phantom/MetaMask/any). #}
 <div class="ds-dialog ds-dialog--info">
-  <p class="ds-dialog__text">Вход</p>
+  <p class="ds-dialog__text">Sign in</p>
   <form class="ds-dialog__form">
-    {{ <field name="email"    type="text"     placeholder="email"  required={true} /> }}
-    {{ <field name="password" type="password" placeholder="пароль" required={true} /> }}
+    {{ <field name="email"    type="text"     placeholder="email"    required={true} /> }}
+    {{ <field name="password" type="password" placeholder="password" required={true} /> }}
     {{ <hidden name="redirect_after" value={redirect_after} /> }}
 
     <div class="ds-dialog__actions">
-      {{ <button label="Войти"  type="submit" variant="primary" handler="login" icon="login" /> }}
-      {{ <button label="Отмена"               variant="ghost"   modal_close={true} /> }}
+      {{ <button label="Sign in" type="submit" variant="primary" handler="login" icon="login" /> }}
+      {{ <button label="Cancel"                 variant="ghost"   modal_close={true} /> }}
     </div>
   </form>
 
   <div class="wallet-login">
-    <p class="wallet-login__or">или кошелёк</p>
-    <div class="wallet-login__btns">
-      <button type="button"
-              class="ds-btn"
-              data-wallet-connect
-              data-wallet-prefer="phantom"
-              data-redirect-after="{{ redirect_after }}">
-        Phantom
-      </button>
-      <button type="button"
-              class="ds-btn"
-              data-wallet-connect
-              data-wallet-prefer="metamask"
-              data-redirect-after="{{ redirect_after }}">
-        MetaMask
-      </button>
-      <button type="button"
-              class="ds-btn"
-              data-wallet-connect
-              data-redirect-after="{{ redirect_after }}">
-        Другой
-      </button>
-    </div>
+    <p class="wallet-login__or">or</p>
+    <button type="button"
+            class="ds-btn"
+            data-wallet-connect
+            data-redirect-after="{{ redirect_after }}">
+      Connect wallet
+    </button>
+    <p class="wallet-login__hint muted">Phantom, MetaMask, or any EVM wallet</p>
     <p class="wallet-login__status muted" data-wallet-status></p>
   </div>
 </div>

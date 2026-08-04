@@ -155,7 +155,18 @@ impl WsState {
         conn: &WsConn,
         p: forge_admin::ws_auth::LoginParams,
     ) -> Result<forge_admin::ws_auth::LoginResp, String> {
-        forge_admin::ws_auth::login(&self.redis, conn, p).await
+        // Public product UI is EN-only (hackathon judges). Map forge RU strings.
+        forge_admin::ws_auth::login(&self.redis, conn, p)
+            .await
+            .map_err(|e| {
+                if e.contains("Неверный") || e.contains("email") && e.contains("парол") {
+                    "Invalid email or password".into()
+                } else if e.contains("отключена") {
+                    "Account disabled".into()
+                } else {
+                    e
+                }
+            })
     }
     async fn logout(
         &self,
