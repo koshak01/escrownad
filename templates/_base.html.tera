@@ -25,7 +25,8 @@
     <a class="app-top__link" href="/oracle/">How it works</a>
   </nav>
   <div class="app-top__right">
-    <a class="app-top__cta" href="/deals/new/">Add offer</a>
+    <a class="app-top__cta" href="/deals/new/?side=offer">Add offer</a>
+    <a class="app-top__cta" href="/deals/new/?side=request">Add request</a>
     {% if user %}
       <span class="app-top__chip" data-wallet-address title="Connected wallet">wallet</span>
     {% else %}

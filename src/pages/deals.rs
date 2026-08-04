@@ -1,4 +1,4 @@
-//! Market board — auction table: lot #, offer type, price, listed age, seller ✓.
+//! Market board — exchange: offers (sell) + requests (buy demand).
 
 use async_trait::async_trait;
 use forge_core::Timestamp;
@@ -8,18 +8,19 @@ use serde::Serialize;
 use crate::app_context;
 use crate::models::Deal;
 
-/// Known offer types (more fields per type later via checklist_json / forms).
 pub const OFFER_TYPES: &[&str] = &["ip", "domain", "property", "work", "other"];
 
 #[derive(Debug, Serialize)]
 struct OfferRow {
     del_id: i64,
-    /// Offer type: ip | domain | property | work | other
+    /// offer | request
+    listing_side: String,
     offer_type: String,
+    description: String,
     total_price: String,
-    /// Human age since created/listed, e.g. "12m", "3h", "2d"
     listed_for: String,
-    seller_verified: bool,
+    /// Creator verified (seller on offer, buyer on request).
+    party_verified: bool,
     del_status: String,
 }
 
@@ -60,17 +61,35 @@ fn listed_for(from: Timestamp) -> String {
     }
 }
 
-fn to_offer_row(d: &Deal, verified_sellers: &[i64]) -> OfferRow {
-    let seller_verified = d
-        .seller_usr_id
-        .map(|id| verified_sellers.contains(&id))
+fn description(d: &Deal) -> String {
+    d.del_title
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| d.del_note.clone().filter(|s| !s.trim().is_empty()))
+        .unwrap_or_else(|| "—".into())
+}
+
+fn to_offer_row(d: &Deal, verified_users: &[i64]) -> OfferRow {
+    let creator = if d.listing_side == "request" {
+        d.buyer_usr_id
+    } else {
+        d.seller_usr_id
+    };
+    let party_verified = creator
+        .map(|id| verified_users.contains(&id))
         .unwrap_or(false);
     OfferRow {
         del_id: d.del_id,
+        listing_side: if d.listing_side.is_empty() {
+            "offer".into()
+        } else {
+            d.listing_side.clone()
+        },
         offer_type: d.asset_type.clone(),
+        description: description(d),
         total_price: format_usdc(d.del_amount.raw()),
         listed_for: listed_for(d.del_dat),
-        seller_verified,
+        party_verified,
         del_status: d.del_status.clone(),
     }
 }
@@ -92,7 +111,8 @@ impl Page for DealsListPage {
             .await
             .map_err(|e| WsError::PageLoad(format!("list_deals_board: {e}")))?;
 
-        let verified_sellers = app_context()
+        // Verified party = completed released deal as seller or buyer
+        let verified_users = app_context()
             .db
             .list_verified_sellers()
             .await
@@ -101,7 +121,7 @@ impl Page for DealsListPage {
         let rows: Vec<OfferRow> = deals
             .iter()
             .filter(|d| !matches!(d.del_status.as_str(), "draft" | "verified"))
-            .map(|d| to_offer_row(d, &verified_sellers))
+            .map(|d| to_offer_row(d, &verified_users))
             .collect();
 
         ctx.insert("deals", &rows);
@@ -122,6 +142,14 @@ impl Page for DealNewPage {
     async fn load(&self, ctx: &mut RequestContext) -> WsResult<()> {
         ctx.insert("user", &ctx.user.is_some());
         ctx.insert("offer_types", &OFFER_TYPES);
+        // default side from query ?side=request
+        let side = ctx
+            .query
+            .get("side")
+            .map(|s| s.as_str())
+            .unwrap_or("offer");
+        let side = if side == "request" { "request" } else { "offer" };
+        ctx.insert("listing_side", &side);
         Ok(())
     }
 }
@@ -149,19 +177,24 @@ impl Page for DealShowPage {
             .map_err(|e| WsError::PageLoad(format!("get_deal: {e}")))?
             .ok_or_else(|| WsError::NotFound("deal not found".into()))?;
 
-        let verified_sellers = app_context()
+        let verified_users = app_context()
             .db
             .list_verified_sellers()
             .await
             .unwrap_or_default();
-        let seller_verified = deal
-            .seller_usr_id
-            .map(|id| verified_sellers.contains(&id))
+        let creator = if deal.listing_side == "request" {
+            deal.buyer_usr_id
+        } else {
+            deal.seller_usr_id
+        };
+        let party_verified = creator
+            .map(|id| verified_users.contains(&id))
             .unwrap_or(false);
 
         ctx.insert("deal", &deal);
         ctx.insert("usr_id", &ctx.user.as_ref().map(|u| u.usr_id));
-        ctx.insert("seller_verified", &seller_verified);
+        ctx.insert("seller_verified", &party_verified);
+        ctx.insert("party_verified", &party_verified);
         ctx.insert("listed_for", &listed_for(deal.del_dat));
         Ok(())
     }

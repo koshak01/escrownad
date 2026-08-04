@@ -26,7 +26,16 @@
   <section class="card">
     <dl class="ds-dl">
       <dt>#</dt><dd class="num">{{ deal.del_id }}</dd>
-      <dt>Offer type</dt><dd><code>{{ deal.asset_type }}</code></dd>
+      <dt>Side</dt>
+      <dd>
+        {% if deal.listing_side == "request" %}
+          <span class="side side--request">request</span>
+        {% else %}
+          <span class="side side--offer">offer</span>
+        {% endif %}
+      </dd>
+      <dt>Type</dt><dd><code>{{ deal.asset_type }}</code></dd>
+      <dt>Description</dt><dd>{{ deal.del_title | default(value="—") }}</dd>
       <dt>Resource</dt><dd><code>{{ deal.prefix }}</code>{% if deal.resource_kind %} · <code>{{ deal.resource_kind }}</code>{% endif %}</dd>
       <dt>From → To</dt><dd>{{ deal.from_org | default(value="—") }} → {{ deal.to_org | default(value="—") }}</dd>
       <dt>Listed</dt><dd>{{ listed_for }}</dd>
@@ -56,16 +65,23 @@
     <form class="ds-dialog__form">
       {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
       {{ <hidden name="action" value="request" /> }}
+      {% if deal.listing_side == "request" %}
+      {{ <button label="I can sell" type="submit" handler="deals_action" variant="primary" /> }}
+      {% else %}
       {{ <button label="I want to buy" type="submit" handler="deals_action" variant="primary" /> }}
+      {% endif %}
     </form>
-    <p class="muted">Connect wallet first so your address is bound as buyer.</p>
     {% endif %}
 
     {% if deal.del_status == "requested" %}
     <form class="ds-dialog__form">
       {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
       {{ <hidden name="action" value="accept" /> }}
+      {% if deal.listing_side == "request" %}
+      {{ <button label="Accept seller" type="submit" handler="deals_action" variant="primary" /> }}
+      {% else %}
       {{ <button label="Accept buyer" type="submit" handler="deals_action" variant="primary" /> }}
+      {% endif %}
     </form>
     {% endif %}
 

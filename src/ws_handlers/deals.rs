@@ -35,6 +35,9 @@ pub struct DealSaveParams {
     /// If true after save → soft_verify + list (publish to market).
     #[serde(default)]
     pub publish: Option<String>,
+    /// `offer` (sell) | `request` (buy demand).
+    #[serde(default)]
+    pub listing_side: Option<String>,
 }
 
 fn require_actor(actor: Option<i64>) -> Result<i64, String> {
@@ -49,14 +52,28 @@ fn is_buyer(deal: &Deal, actor: i64) -> bool {
     deal.buyer_usr_id == Some(actor)
 }
 
-/// Create/update draft lot (seller only).
-pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result<ActionResp, String> {
-    let actor = require_actor(seller_usr_id)?;
+fn is_creator(deal: &Deal, actor: i64) -> bool {
+    if deal.listing_side == "request" {
+        is_buyer(deal, actor)
+    } else {
+        is_seller(deal, actor)
+    }
+}
+
+/// Create/update market listing (offer = sell, request = buy demand).
+pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<ActionResp, String> {
+    let actor = require_actor(actor_usr_id)?;
     let publish = p
         .publish
         .as_deref()
         .map(|s| s == "true" || s == "1" || s == "on")
         .unwrap_or(false);
+    let side = p
+        .listing_side
+        .as_deref()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| s == "request" || s == "offer")
+        .unwrap_or_else(|| "offer".into());
 
     let mut deal = if let Some(id) = p.id.filter(|i| *i > 0) {
         let existing = app_context()
@@ -65,15 +82,14 @@ pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result
             .await
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "deal not found".to_string())?;
-        if !is_seller(&existing, actor) {
-            return Err("forbidden: only the seller can edit this offer".into());
+        if !is_creator(&existing, actor) {
+            return Err("forbidden: only the creator can edit this listing".into());
         }
-        // Only editable while not past listed market stage (no rewrite after money)
         if !matches!(
             existing.del_status.as_str(),
             "draft" | "verified" | "listed"
         ) {
-            return Err("offer is locked at this stage".into());
+            return Err("listing is locked at this stage".into());
         }
         existing
     } else {
@@ -81,10 +97,10 @@ pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result
             del_status: "draft".into(),
             asset_type: "ip".into(),
             resource_kind: "PI".into(),
+            listing_side: side.clone(),
             chain_id: "monad".into(),
             del_is_enable: true,
             soft_verified: false,
-            seller_usr_id: Some(actor),
             ..Default::default()
         }
     };
@@ -110,21 +126,32 @@ pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result
     if let Some(v) = p.to_org {
         deal.to_org = Some(v);
     }
-    // Seller wallet: only own linked wallet (ignore spoofed client value)
-    if let Ok(Some(w)) = app_context().db.wallet_address_for_user(actor).await {
-        deal.seller_wallet = Some(w);
-    } else if let Some(v) = p.seller_wallet.filter(|s| !s.trim().is_empty()) {
-        // Allow explicit only if matches normalized format; still bind to actor
-        deal.seller_wallet = Some(v);
-    }
     if let Some(v) = p.contact_email {
         deal.contact_email = Some(v);
     }
     if let Some(units) = p.del_amount {
-        // Form: whole USDC units (e.g. 1500) → FixedN<8>
         deal.del_amount = forge_fixed_n::FixedN::from_int(units);
     }
-    deal.seller_usr_id = Some(actor);
+
+    // Bind creator to offer (seller) or request (buyer) + linked wallet
+    let wallet = app_context()
+        .db
+        .wallet_address_for_user(actor)
+        .await
+        .map_err(|e| e.to_string())?;
+    if side == "request" || deal.listing_side == "request" {
+        deal.listing_side = "request".into();
+        deal.buyer_usr_id = Some(actor);
+        if let Some(w) = wallet {
+            deal.buyer_wallet = Some(w);
+        }
+    } else {
+        deal.listing_side = "offer".into();
+        deal.seller_usr_id = Some(actor);
+        if let Some(w) = wallet {
+            deal.seller_wallet = Some(w);
+        }
+    }
 
     if publish {
         deal.apply_action("publish", Some(actor), None)?;
@@ -157,11 +184,23 @@ pub struct DealActionParams {
 }
 
 /// Authorize action by party role.
+/// - **offer** (sell): creator = seller; counterparty = buyer
+/// - **request** (buy demand): creator = buyer; counterparty = seller
 fn authorize_action(deal: &Deal, action: &str, actor: i64) -> Result<(), String> {
     let seller = is_seller(deal, actor);
     let buyer = is_buyer(deal, actor);
+    let is_request = deal.listing_side == "request";
     match action {
-        "soft_verify" | "list" | "publish" | "accept" | "start_prepare" | "mark_prepared" => {
+        "soft_verify" | "list" | "publish" => {
+            if is_creator(deal, actor) {
+                Ok(())
+            } else {
+                Err("forbidden: creator only".into())
+            }
+        }
+        "accept" | "start_prepare" | "mark_prepared" => {
+            // After match: seller-side ops (prep). On offer creator is seller;
+            // on request, seller is the one who responded.
             if seller {
                 Ok(())
             } else {
@@ -169,7 +208,15 @@ fn authorize_action(deal: &Deal, action: &str, actor: i64) -> Result<(), String>
             }
         }
         "request" => {
-            if seller {
+            // Counterparty expresses interest
+            if is_request {
+                // Demand listing: only a non-buyer (seller-side) can respond
+                if buyer {
+                    Err("forbidden: cannot respond to own request".into())
+                } else {
+                    Ok(())
+                }
+            } else if seller {
                 Err("forbidden: seller cannot buy own offer".into())
             } else {
                 Ok(())
@@ -208,20 +255,28 @@ pub async fn deals_action(
 
     authorize_action(&deal, &p.action, actor)?;
 
-    // Never trust client buyer_wallet — bind from session linkage
-    let mut buyer_wallet = None;
+    // Counterparty wallet from linkage — never trust client payload
+    let mut wallet_arg = None;
     if p.action == "request" {
-        buyer_wallet = app_context()
+        let w = app_context()
             .db
             .wallet_address_for_user(actor)
             .await
             .map_err(|e| e.to_string())?;
-        if buyer_wallet.is_none() {
+        if w.is_none() {
             return Err("no wallet linked to this account".into());
+        }
+        if deal.listing_side == "request" {
+            // Responding seller on a buy-request
+            deal.seller_usr_id = Some(actor);
+            deal.seller_wallet = w;
+            wallet_arg = None;
+        } else {
+            wallet_arg = w;
         }
     }
 
-    deal.apply_action(&p.action, Some(actor), buyer_wallet)?;
+    deal.apply_action(&p.action, Some(actor), wallet_arg)?;
 
     app_context()
         .db

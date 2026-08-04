@@ -1,6 +1,6 @@
 {% extends "_base.html.tera" %}
 
-{% block title %}Offers · EscrowNad{% endblock %}
+{% block title %}Market · EscrowNad{% endblock %}
 
 {% block content %}
 <main class="app-main">
@@ -9,27 +9,37 @@
       <thead>
         <tr>
           <th>#</th>
+          <th>Side</th>
           <th>Type</th>
+          <th>Description</th>
           <th>Price</th>
           <th>Listed</th>
-          <th>Seller</th>
+          <th>✓</th>
           <th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% if deals | length == 0 %}
         <tr>
-          <td colspan="6" class="data-table__empty">No offers yet.</td>
+          <td colspan="8" class="data-table__empty">No listings yet.</td>
         </tr>
         {% else %}
         {% for d in deals %}
         <tr class="data-table__row" onclick="location.href='/deals/{{ d.del_id }}/'">
           <td class="num">{{ d.del_id }}</td>
+          <td>
+            {% if d.listing_side == "request" %}
+              <span class="side side--request">request</span>
+            {% else %}
+              <span class="side side--offer">offer</span>
+            {% endif %}
+          </td>
           <td><code>{{ d.offer_type }}</code></td>
+          <td class="desc">{{ d.description }}</td>
           <td class="num"><strong>{{ d.total_price }}</strong></td>
           <td class="num">{{ d.listed_for }}</td>
           <td>
-            {% if d.seller_verified %}
+            {% if d.party_verified %}
               <span class="badge-ok">✓</span>
             {% else %}
               <span class="muted">—</span>

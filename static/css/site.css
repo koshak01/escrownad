@@ -246,6 +246,32 @@ body.app-shell .foot:not(.app-foot) {
   font-family: ui-monospace, monospace;
   font-size: 12px;
 }
+.data-table .desc {
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: lowercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.side--offer {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.side--request {
+  background: color-mix(in srgb, #85e6ff 18%, transparent);
+  color: #1a8fb0;
+}
+html.light .side--request {
+  color: #0a5f7a;
+}
 .data-table__empty {
   text-align: center;
   color: var(--muted);

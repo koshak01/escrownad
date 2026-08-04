@@ -41,6 +41,9 @@ pub struct Deal {
     /// PA | PI (when asset_type = ip)
     pub resource_kind: String,
     pub prefix: String,
+
+    /// `offer` = sell listing · `request` = buy demand (exchange).
+    pub listing_side: String,
     pub from_org: Option<String>,
     pub to_org: Option<String>,
 
@@ -86,11 +89,13 @@ pub struct DealListFilter {
 impl Deal {
     pub async fn save(&mut self, pool: &PgPool) -> forge_db::sqlx::Result<i64> {
         let key = format!(
-            "{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}",
+            self.listing_side,
             self.asset_type,
             self.resource_kind,
             self.prefix,
-            self.seller_wallet.as_deref().unwrap_or("")
+            self.seller_wallet.as_deref().unwrap_or(""),
+            self.buyer_wallet.as_deref().unwrap_or("")
         );
         self.del_hash = sha256_hex(key.as_bytes());
         if self.chain_id.is_empty() {
@@ -98,6 +103,9 @@ impl Deal {
         }
         if self.asset_type.is_empty() {
             self.asset_type = "ip".into();
+        }
+        if self.listing_side.is_empty() {
+            self.listing_side = "offer".into();
         }
         if self.del_status.is_empty() {
             self.del_status = status::DRAFT.into();
@@ -164,11 +172,22 @@ impl Deal {
                 self.del_status = LISTED.into();
             }
             "request" => {
+                // Offer board: buyer wants to buy. Request board: seller responds to demand.
                 if self.del_status != LISTED {
-                    return Err("request only on listed lot".into());
+                    return Err("respond only on listed lot".into());
                 }
-                self.buyer_usr_id = actor_usr_id;
-                self.buyer_wallet = buyer_wallet;
+                if self.listing_side == "request" {
+                    // Seller taking a buy-request (seller already set by handler)
+                    if self.seller_usr_id.is_none() {
+                        self.seller_usr_id = actor_usr_id;
+                    }
+                    if self.seller_wallet.is_none() {
+                        self.seller_wallet = buyer_wallet;
+                    }
+                } else {
+                    self.buyer_usr_id = actor_usr_id;
+                    self.buyer_wallet = buyer_wallet;
+                }
                 self.del_status = REQUESTED.into();
             }
             "accept" => {

@@ -1,22 +1,23 @@
 {% extends "_base.html.tera" %}
 
-{% block title %}Add offer · EscrowNad{% endblock %}
+{% block title %}{% if listing_side == "request" %}Add request{% else %}Add offer{% endif %} · EscrowNad{% endblock %}
 
 {% block content %}
 <main class="app-main">
   {% if not user %}
   <p class="app-hint">
     <button type="button" class="app-top__cta app-top__cta--solid"
-            data-wallet-connect data-redirect-after="/deals/new/">
+            data-wallet-connect data-redirect-after="/deals/new/?side={{ listing_side }}">
       Connect wallet
     </button>
   </p>
   {% else %}
   <section class="app-form">
     <form class="ds-dialog__form">
+      {{ <hidden name="listing_side" value={listing_side} /> }}
       {{ <field name="asset_type" type="text" label="Offer type" placeholder="ip | domain | property | work | other" required={true} /> }}
-      {{ <field name="del_title" type="text" label="Title" placeholder="Short title" required={true} /> }}
-      {{ <field name="prefix" type="text" label="Resource" placeholder="depends on type: prefix, domain, address…" required={true} /> }}
+      {{ <field name="del_title" type="text" label="Description" placeholder="Short description" required={true} /> }}
+      {{ <field name="prefix" type="text" label="Resource" placeholder="prefix / domain / address / id" required={true} /> }}
       {{ <field name="resource_kind" type="text" label="Subtype" placeholder="PA | PI | n/a" /> }}
       {{ <field name="from_org" type="text" label="From" /> }}
       {{ <field name="to_org" type="text" label="To" /> }}
