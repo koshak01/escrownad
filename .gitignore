@@ -1,0 +1,22 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Node (if any later)
+node_modules/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+config.toml
+**/etc/local.toml
+**/etc/*secret*
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
