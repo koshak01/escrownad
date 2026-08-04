@@ -13,6 +13,7 @@
 //! end-to-end. Доменные модели / команды / страницы добавляются проектом
 //! поверх этого минимума.
 
+pub mod chain;
 pub mod models;
 pub mod observer;
 pub mod pages;
@@ -139,6 +140,7 @@ pub enum DbCommand {
 
     // ── deals (proof-escrow) ────────────────────────────────────────────────
     ListDealsListed,
+    ListDealsBoard,
     ListDealsFiltered {
         filter: models::DealListFilter,
         sort: Option<forge_admin::handlers::SortSpec>,
@@ -239,6 +241,7 @@ forge_ipc::client! {
 
         // deals
         pub fn list_deals_listed() -> Vec<models::Deal> = ListDealsListed -> Deals(v) = v;
+        pub fn list_deals_board() -> Vec<models::Deal> = ListDealsBoard -> Deals(v) = v;
         pub fn list_deals_filtered(filter: models::DealListFilter, sort: Option<forge_admin::handlers::SortSpec>)
             -> Vec<models::Deal>
             = ListDealsFiltered { filter, sort } -> Deals(v) = v;

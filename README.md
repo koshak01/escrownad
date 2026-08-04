@@ -8,7 +8,7 @@ oracle confirms the condition. First asset module: **IPv4 (RIPE PA + PI)**.
 | Peer | `escrownad` / **Янус** |
 | Domain / DB | `escrownad.com` |
 | Chain (demo) | **Monad only** |
-| Stack | forge (4 bins) + Rust observer + Solidity (next) |
+| Stack | forge (4 bins) + observer + EscrowLock.sol |
 
 ## Dev
 
@@ -40,5 +40,17 @@ cargo build --bins
 2. Buyer picks a deal and deposits into the on-chain lock.
 3. Observer watches RIPE transfer tables (PA + PI JSON).
 4. Fact match → release to seller; timeout → refund.
+
+### Observer
+
+```bash
+OBSERVER_ONCE=1 cargo run --bin escrownad-observer
+```
+
+### Monad lock
+
+- Solidity: `contracts/EscrowLock.sol` (`fund` / `release` / `refund` / `refundAfterDeadline`)
+- Rust: `src/chain/` — default `CHAIN_MODE=mock` (`mock:ripe:…` txs)
+- Live deploy: Foundry on Monad testnet when `forge` is available
 
 See `PROJECT.md` for full product context.

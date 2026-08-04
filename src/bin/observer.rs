@@ -109,7 +109,8 @@ async fn tick(db: &DbClient) -> Result<u32> {
         );
         deal.del_status = "released".into();
         deal.ripe_match_key = Some(key.clone());
-        deal.release_tx = Some(format!("mock:ripe:{key}"));
+        // CHAIN_MODE=mock (default): string tx. Live Monad EscrowLock later.
+        deal.release_tx = Some(escrownad::chain::mock_release_tx(&key));
         db.save_deal(deal)
             .await
             .map_err(|e| anyhow::anyhow!("save deal: {e}"))?;

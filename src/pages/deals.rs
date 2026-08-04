@@ -18,9 +18,9 @@ impl Page for DealsListPage {
     async fn load(&self, ctx: &mut RequestContext) -> WsResult<()> {
         let deals = app_context()
             .db
-            .list_deals_listed()
+            .list_deals_board()
             .await
-            .map_err(|e| WsError::PageLoad(format!("list_deals_listed: {e}")))?;
+            .map_err(|e| WsError::PageLoad(format!("list_deals_board: {e}")))?;
         ctx.insert("deals", &deals);
         Ok(())
     }

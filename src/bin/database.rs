@@ -97,7 +97,13 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
             }
 
             DbCommand::ListDealsListed => {
-                let deals = escrownad::models::Deal::list_listed(&self.pool)
+                let deals = escrownad::models::Deal::list_open(&self.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(DbResponse::Deals(deals))
+            }
+            DbCommand::ListDealsBoard => {
+                let deals = escrownad::models::Deal::list_board(&self.pool)
                     .await
                     .map_err(|e| e.to_string())?;
                 Ok(DbResponse::Deals(deals))

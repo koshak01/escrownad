@@ -6,12 +6,12 @@
 <main class="home">
   <section class="home__hero">
     <h1>Deals</h1>
-    <p class="lead">IP blocks for sale — funds settle on RIPE proof (Monad lock).</p>
+    <p class="lead">IP blocks — funds settle on RIPE proof (Monad lock). Status path: listed → funded → awaiting_proof → released.</p>
   </section>
 
   <section>
     {% if deals | length == 0 %}
-      <p class="muted">No listed deals yet.</p>
+      <p class="muted">No deals yet.</p>
     {% else %}
       <table class="ds-table">
         <thead>
@@ -29,7 +29,9 @@
             <td>{{ d.del_title | default(value="—") }}</td>
             <td><code>{{ d.resource_kind }}</code></td>
             <td><code>{{ d.prefix }}</code></td>
-            <td>{{ d.del_status }}</td>
+            <td>
+              <span class="status status--{{ d.del_status }}">{{ d.del_status }}</span>
+            </td>
             <td><a href="/deals/{{ d.del_id }}/">open</a></td>
           </tr>
           {% endfor %}

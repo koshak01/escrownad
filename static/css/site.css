@@ -1,47 +1,45 @@
-/* forge-skeleton — проектная вёрстка.
-   Минимальный нейтральный дефолт. Формы / кнопки / поля — через ядерные
-   ds-components (`forge/templates/_components/`), их стили живут в
-   `forge/static/css/`. Здесь только page-level layout. */
+/* EscrowNad site extras */
 
-html, body { margin: 0; }
-body { padding-left: 4px; padding-right: 4px; }
+.status {
+  display: inline-block;
+  padding: 0.15em 0.55em;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 600;
+  background: var(--line);
+  color: var(--fg);
+}
+.status--listed { background: #2d1b4e; color: #c8b8f0; }
+.status--funded,
+.status--awaiting_proof { background: #1a3d35; color: #3dffc8; }
+.status--released { background: #143d28; color: #5dff9a; }
+.status--refunded,
+.status--dispute,
+.status--cancelled { background: #3d1a1a; color: #ff8a8a; }
 
-/* admin-table actions: прижать к правому краю td. */
-.admin-table td.admin-table__actions { text-align: right; }
-
-/* — home (главная skeleton'а) — */
-.home {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 48px var(--gutter);
+.lifecycle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
 }
-.home__hero h1 {
-  font-size: 2rem;
-  margin: 0 0 12px;
-}
-.home__hero .lead {
-  color: var(--muted);
-  margin: 0 0 32px;
-}
-.home__demo {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
-}
-.home__demo p {
-  margin: 0 0 20px;
-}
-
-/* — echo demo result — */
-.echo-result {
-  margin-top: 24px;
-  padding: 16px;
+.lifecycle li {
+  padding: 0.35em 0.75em;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
 }
-.echo-result__text {
-  margin: 0 0 8px;
-  font-weight: 500;
+.lifecycle li.done {
+  border-color: var(--accent);
+  color: var(--accent);
 }
-.muted { color: var(--muted); }
+.lifecycle li.fail {
+  border-color: #ff8a8a;
+  color: #ff8a8a;
+}
+
+.home__hero img {
+  max-width: min(280px, 100%);
+}

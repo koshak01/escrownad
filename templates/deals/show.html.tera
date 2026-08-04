@@ -8,23 +8,38 @@
     <p class="muted"><a href="/deals/">← deals</a></p>
     <h1>{{ deal.del_title | default(value="Deal") }}</h1>
     <p class="lead">{{ deal.del_note | default(value="") }}</p>
+    <p>
+      <span class="status status--{{ deal.del_status }}">{{ deal.del_status }}</span>
+      · chain <code>{{ deal.chain_id }}</code>
+    </p>
   </section>
 
   <section>
+    <h2>Lifecycle</h2>
+    <ol class="lifecycle">
+      <li class="{% if deal.del_status == 'draft' or deal.del_status == 'listed' or deal.del_status == 'funded' or deal.del_status == 'awaiting_proof' or deal.del_status == 'released' or deal.del_status == 'refunded' %}done{% endif %}">listed</li>
+      <li class="{% if deal.del_status == 'funded' or deal.del_status == 'awaiting_proof' or deal.del_status == 'released' or deal.del_status == 'refunded' %}done{% endif %}">funded (buyer deposit)</li>
+      <li class="{% if deal.del_status == 'awaiting_proof' or deal.del_status == 'released' or deal.del_status == 'refunded' %}done{% endif %}">awaiting_proof (oracle)</li>
+      <li class="{% if deal.del_status == 'released' %}done{% endif %}{% if deal.del_status == 'refunded' %}fail{% endif %}">
+        {% if deal.del_status == 'refunded' %}refunded{% else %}released{% endif %}
+      </li>
+    </ol>
+
     <dl class="ds-dl">
-      <dt>Status</dt><dd>{{ deal.del_status }}</dd>
       <dt>Resource</dt><dd><code>{{ deal.resource_kind }}</code> · <code>{{ deal.prefix }}</code></dd>
       <dt>From → To</dt><dd>{{ deal.from_org | default(value="?") }} → {{ deal.to_org | default(value="?") }}</dd>
       <dt>Seller wallet</dt><dd><code>{{ deal.seller_wallet | default(value="—") }}</code></dd>
       <dt>Buyer wallet</dt><dd><code>{{ deal.buyer_wallet | default(value="—") }}</code></dd>
-      <dt>Chain</dt><dd>{{ deal.chain_id }}</dd>
+      <dt>Lock tx</dt><dd><code>{{ deal.lock_tx | default(value="—") }}</code></dd>
+      <dt>Release tx</dt><dd><code>{{ deal.release_tx | default(value="—") }}</code></dd>
+      <dt>RIPE match key</dt><dd><code>{{ deal.ripe_match_key | default(value="—") }}</code></dd>
       <dt>Checklist</dt>
       <dd>
         <ul>
           <li>Seller holds prefix (self-check)</li>
-          <li>Buyer deposits into on-chain lock</li>
-          <li>RIPE {{ deal.resource_kind }} JSON shows transfer → release</li>
-          <li>Timeout without fact → refund</li>
+          <li>Buyer deposits into on-chain lock → status <code>funded</code> / <code>awaiting_proof</code></li>
+          <li>RIPE {{ deal.resource_kind }} JSON match → <code>released</code> (observer)</li>
+          <li>Timeout without fact → <code>refunded</code></li>
         </ul>
       </dd>
     </dl>

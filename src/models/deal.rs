@@ -83,7 +83,8 @@ impl Deal {
         }
     }
 
-    pub async fn list_listed(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
+    /// Open deals for observer (not terminal).
+    pub async fn list_open(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
         forge_db::sqlx::query_as::<_, Deal>(
             r#"
             SELECT *
@@ -96,5 +97,29 @@ impl Deal {
         )
         .fetch_all(pool)
         .await
+    }
+
+    /// Public board: open + recently settled (released/refunded/dispute).
+    pub async fn list_board(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
+        forge_db::sqlx::query_as::<_, Deal>(
+            r#"
+            SELECT *
+            FROM deals
+            WHERE del_is_enable
+              AND del_status IN (
+                'listed', 'funded', 'awaiting_proof',
+                'released', 'refunded', 'dispute'
+              )
+            ORDER BY del_id DESC
+            LIMIT 100
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+    }
+
+    /// Legacy name used by observer + older pages.
+    pub async fn list_listed(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
+        Self::list_open(pool).await
     }
 }
