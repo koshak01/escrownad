@@ -44,13 +44,12 @@
   <div class="wrap">
     <h1 class="lead">Settle on proof.</h1>
     <p class="sub">Proof-escrow on Monad. USDC unlocks only on external fact.</p>
+    {# Single Connect wallet CTA is in app-bar (top-right). #}
+    {% if user %}
     <div class="enter">
-      {% if user %}
-        <a href="/deals/">Browse offers</a>
-      {% else %}
-        <button type="button" data-wallet-connect data-redirect-after="/deals/">Connect wallet</button>
-      {% endif %}
+      <a href="/deals/">Browse offers</a>
     </div>
+    {% endif %}
     <p class="sub" data-wallet-status></p>
   </div>
   <div class="foot">© EscrowNad · Monad</div>
