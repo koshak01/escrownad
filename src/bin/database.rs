@@ -136,7 +136,9 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
             }
 
             DbCommand::WalletFindOrCreate { address } => {
-                // address already normalized lowercase 0x by wallet_auth
+                // Same as password login, but identity = EVM address + signature.
+                // New users: usr_is_staff=false, role "user" (never admin),
+                // link users2wallets + configs2users.wallet_address.
                 let existing: Option<(i64,)> = forge_db::sqlx::query_as(include_str!(
                     "../../sqls/wallets_find_user.sql"
                 ))
@@ -146,6 +148,19 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 .map_err(|e| e.to_string())?;
 
                 if let Some((usr_id,)) = existing {
+                    // Ensure role + config stay in sync on every login
+                    forge_db::sqlx::query(include_str!("../../sqls/wallets_assign_user_role.sql"))
+                        .bind(usr_id)
+                        .execute(&self.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    forge_db::sqlx::query(include_str!("../../sqls/wallets_upsert_config.sql"))
+                        .bind(usr_id)
+                        .bind(&address)
+                        .execute(&self.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
+
                     let row: (String, bool, bool) = forge_db::sqlx::query_as(
                         "SELECT usr_hash, usr_is_staff, usr_is_enable FROM users WHERE usr_id = $1",
                     )
@@ -164,6 +179,7 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
 
                 let usr_hash = escrownad::wallet_auth::new_usr_hash();
                 let descr = escrownad::wallet_auth::wallet_descr(&address);
+                // staff=false — product user only (see wallets_insert_user.sql)
                 let (usr_id, usr_hash, usr_is_staff, usr_is_enable): (i64, String, bool, bool) =
                     forge_db::sqlx::query_as(include_str!("../../sqls/wallets_insert_user.sql"))
                         .bind(&usr_hash)
@@ -176,6 +192,21 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                     .bind(usr_id)
                     .bind(&address)
                     .fetch_one(&self.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                // Role "user" — not admin/manager
+                forge_db::sqlx::query(include_str!("../../sqls/wallets_assign_user_role.sql"))
+                    .bind(usr_id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                // settings table configs2users
+                forge_db::sqlx::query(include_str!("../../sqls/wallets_upsert_config.sql"))
+                    .bind(usr_id)
+                    .bind(&address)
+                    .execute(&self.pool)
                     .await
                     .map_err(|e| e.to_string())?;
 
