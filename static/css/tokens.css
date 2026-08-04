@@ -1,47 +1,30 @@
-/* forge-skeleton — палитра и базовые токены.
-   Эталонный нейтральный дефолт. Реальные проекты на forge подкладывают
-   собственные tokens.css в свой `static/css/` и переопределяют переменные.
-
-   Тёмная — default. `html.light` активирует светлую. */
+/* EscrowNad brand tokens — violet + electric cyan (Dedal pack). */
 
 :root {
-  /* — тёмная (default) — */
-  --bg:        #1a1a1c;
-  --fg:        #e6e4df;
-  --muted:     #8a8780;
-  --line:      #2a2a2e;
-  /* Охровый — коллективная forge-айдентика. Ds красится от --accent; проект
-     переопределяет своим брендом (терракота / циан / фиолет) в своём tokens.css. */
-  --accent:    #d4af6a;
-  --accent-fg: #1a1a1c;
+  --bg:        #120a1f;
+  --fg:        #f0ecf8;
+  --muted:     #9a8fb0;
+  --line:      #2d1b4e;
+  --accent:    #3dffc8;
+  --accent-fg: #120a1f;
+  --ink:       #e8e4f0;
+  --violet:    #5b2d9e;
+  --violet-deep: #2d1b4e;
 
-  /* Design-system ink — цвет текста в input/textarea. */
-  --ink:       #d8d4cd;
-
-  /* Mulish — единственный шрифт коллектива (см. forge/docs/design_system/00_overview.md).
-     Полная поддержка кириллицы, тонкие веса 200-1000. Без фолбэков:
-     если Mulish не загрузился — это диагностируемая проблема, а не повод
-     подсовывать system-fonts тихо. Если у проекта своя типографика —
-     переопределяй --font в собственном tokens.css.
-
-     --serif был оставлен на случай legacy проектных стилей, ссылающихся
-     на него. В ядре он больше не используется — все заголовки/бренд
-     рендерятся через --font (один шрифт коллектива). */
   --font:    'Mulish';
   --serif:   var(--font);
 
-  --radius:  4px;
+  --radius:  6px;
   --gutter:  24px;
   --max-w:   1080px;
 }
 
-/* — светлая — */
 html.light {
-  --bg:        #fafaf7;
-  --fg:        #1a1a1c;
-  --muted:     #6c6a64;
-  --line:      #e2e0db;
-  --accent:    #d4af6a;
-  --accent-fg: #1a1a1c;
-  --ink:       #1a1a1c;
+  --bg:        #f7f5fb;
+  --fg:        #1a0f2e;
+  --muted:     #6a5f7a;
+  --line:      #d8d0e8;
+  --accent:    #5b2d9e;
+  --accent-fg: #f7f5fb;
+  --ink:       #1a0f2e;
 }

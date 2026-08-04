@@ -71,6 +71,9 @@ pub fn app_context() -> &'static AppContext {
 pub fn pages() -> Vec<Box<dyn Page>> {
     let mut out: Vec<Box<dyn Page>> = vec![
         Box::new(pages::IndexPage),
+        Box::new(pages::DealsListPage),
+        Box::new(pages::DealShowPage),
+        Box::new(pages::OraclePage),
         // ЭТАЛОН: доменные admin-страницы проекта (demo-сущность).
         // Порядок list → new → edit: `/admin/demos/new/` обязан идти ДО
         // `/admin/demos/{id}/`, иначе `new` попадёт в `{id}` (см. page.rs::matches).
@@ -132,6 +135,19 @@ pub enum DbCommand {
     DeleteDemo {
         id: i64,
     },
+
+    // ── deals (proof-escrow) ────────────────────────────────────────────────
+    ListDealsListed,
+    ListDealsFiltered {
+        filter: models::DealListFilter,
+        sort: Option<forge_admin::handlers::SortSpec>,
+    },
+    GetDeal {
+        id: i64,
+    },
+    SaveDeal {
+        data: models::Deal,
+    },
 }
 
 // large_enum_variant: `Admin` несёт весь AdminDbResponse (большой по дизайну) —
@@ -148,6 +164,9 @@ pub enum DbResponse {
     // ── ответы demo-сущности (эталон) ──────────────────────────────────────
     Demos(Vec<models::Demo>),
     Demo(Option<models::Demo>),
+    // deals
+    Deals(Vec<models::Deal>),
+    Deal(Option<models::Deal>),
     Ok,
 }
 
@@ -216,6 +235,14 @@ forge_ipc::client! {
         pub fn get_demo(id: i64) -> Option<models::Demo> = GetDemo { id } -> Demo(v) = v;
         pub fn save_demo(data: models::Demo) = SaveDemo { data } -> Ok;
         pub fn delete_demo(id: i64) = DeleteDemo { id } -> Ok;
+
+        // deals
+        pub fn list_deals_listed() -> Vec<models::Deal> = ListDealsListed -> Deals(v) = v;
+        pub fn list_deals_filtered(filter: models::DealListFilter, sort: Option<forge_admin::handlers::SortSpec>)
+            -> Vec<models::Deal>
+            = ListDealsFiltered { filter, sort } -> Deals(v) = v;
+        pub fn get_deal(id: i64) -> Option<models::Deal> = GetDeal { id } -> Deal(v) = v;
+        pub fn save_deal(data: models::Deal) = SaveDeal { data } -> Ok;
     }
 }
 

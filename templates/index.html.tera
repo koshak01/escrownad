@@ -5,24 +5,19 @@
 {% block content %}
 <main class="home">
   <section class="home__hero">
-    <h1>{{ constants.site_title | default(value="EscrowNad") }}</h1>
-    <p class="lead">Proof-escrow on Monad — settle on external proof. First asset: IPv4 (RIPE).</p>
-  </section>
-
-  <section class="home__demo">
-    <p class="muted">
-      Каркас forge. Вход в админку: <a href="/admin/">/admin/</a>
-      (dev login — в README, пароль в <code>pass.txt</code> у оператора).
+    <p>
+      <img src="/static/brand/wordmark.png" alt="EscrowNad" style="max-height:48px;height:auto">
     </p>
-
-    <form class="ds-form">
-      {{ <field name="text" type="text" label="Текст" placeholder="WS echo smoke" required={true} /> }}
-      {{ <button label="Echo" type="submit" handler="echo" variant="primary" /> }}
-    </form>
-
-    <div id="echo-result" class="echo-result">
-      <p class="muted">Результат появится здесь.</p>
-    </div>
+    <h1>Settle on proof</h1>
+    <p class="lead">
+      Proof-escrow on <strong>Monad</strong>. First asset: <strong>IPv4</strong> (RIPE PA/PI).
+      Funds release only when the oracle sees the transfer fact.
+    </p>
+    <p>
+      <a class="ds-btn ds-btn--primary" href="/deals/">Browse deals</a>
+      <a class="ds-btn" href="/oracle/">What is the oracle?</a>
+      <a class="ds-btn" href="/admin/">Admin</a>
+    </p>
   </section>
 </main>
 {% endblock %}

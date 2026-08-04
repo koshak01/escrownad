@@ -1,0 +1,41 @@
+{% extends "_base.html.tera" %}
+
+{% block title %}Deals · EscrowNad{% endblock %}
+
+{% block content %}
+<main class="home">
+  <section class="home__hero">
+    <h1>Deals</h1>
+    <p class="lead">IP blocks for sale — funds settle on RIPE proof (Monad lock).</p>
+  </section>
+
+  <section>
+    {% if deals | length == 0 %}
+      <p class="muted">No listed deals yet.</p>
+    {% else %}
+      <table class="ds-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Kind</th>
+            <th>Prefix</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in deals %}
+          <tr>
+            <td>{{ d.del_title | default(value="—") }}</td>
+            <td><code>{{ d.resource_kind }}</code></td>
+            <td><code>{{ d.prefix }}</code></td>
+            <td>{{ d.del_status }}</td>
+            <td><a href="/deals/{{ d.del_id }}/">open</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

@@ -95,6 +95,33 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                     .map_err(|e| e.to_string())?;
                 Ok(DbResponse::Ok)
             }
+
+            DbCommand::ListDealsListed => {
+                let deals = escrownad::models::Deal::list_listed(&self.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(DbResponse::Deals(deals))
+            }
+            DbCommand::ListDealsFiltered { filter, sort } => {
+                use escrownad::models::Deal;
+                let deals = filter
+                    .apply(Deal::query())
+                    .order(forge_admin::handlers::order_clause("deals", &sort, "del_id"))
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(DbResponse::Deals(deals))
+            }
+            DbCommand::GetDeal { id } => {
+                let deal = escrownad::models::Deal::find_by_id(&self.pool, id)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(DbResponse::Deal(deal))
+            }
+            DbCommand::SaveDeal { mut data } => {
+                data.save(&self.pool).await.map_err(|e| e.to_string())?;
+                Ok(DbResponse::Ok)
+            }
         }
     }
 }
@@ -153,6 +180,16 @@ async fn run() -> Result<()> {
             pk: "dmo_id",
             bool_cols: &["dmo_is_enable"],
             sort_cols: &["dmo_code", "dmo_title", "dmo_is_enable"],
+            ..Default::default()
+        },
+    );
+    forge_admin::register_list_model(
+        "deals",
+        forge_admin::ListModelSpec {
+            table: "deals",
+            pk: "del_id",
+            bool_cols: &["del_is_enable"],
+            sort_cols: &["del_id", "del_status", "prefix", "resource_kind"],
             ..Default::default()
         },
     );

@@ -1,0 +1,34 @@
+{% extends "_base.html.tera" %}
+
+{% block title %}{{ deal.del_title | default(value="Deal") }} · EscrowNad{% endblock %}
+
+{% block content %}
+<main class="home">
+  <section class="home__hero">
+    <p class="muted"><a href="/deals/">← deals</a></p>
+    <h1>{{ deal.del_title | default(value="Deal") }}</h1>
+    <p class="lead">{{ deal.del_note | default(value="") }}</p>
+  </section>
+
+  <section>
+    <dl class="ds-dl">
+      <dt>Status</dt><dd>{{ deal.del_status }}</dd>
+      <dt>Resource</dt><dd><code>{{ deal.resource_kind }}</code> · <code>{{ deal.prefix }}</code></dd>
+      <dt>From → To</dt><dd>{{ deal.from_org | default(value="?") }} → {{ deal.to_org | default(value="?") }}</dd>
+      <dt>Seller wallet</dt><dd><code>{{ deal.seller_wallet | default(value="—") }}</code></dd>
+      <dt>Buyer wallet</dt><dd><code>{{ deal.buyer_wallet | default(value="—") }}</code></dd>
+      <dt>Chain</dt><dd>{{ deal.chain_id }}</dd>
+      <dt>Checklist</dt>
+      <dd>
+        <ul>
+          <li>Seller holds prefix (self-check)</li>
+          <li>Buyer deposits into on-chain lock</li>
+          <li>RIPE {{ deal.resource_kind }} JSON shows transfer → release</li>
+          <li>Timeout without fact → refund</li>
+        </ul>
+      </dd>
+    </dl>
+    <p class="muted"><a href="/oracle/">What is the oracle?</a></p>
+  </section>
+</main>
+{% endblock %}
