@@ -43,3 +43,9 @@
 .home__hero img {
   max-width: min(280px, 100%);
 }
+
+.brand-wordmark {
+  max-height: 48px;
+  height: auto;
+  width: auto;
+}

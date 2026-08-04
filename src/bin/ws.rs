@@ -1,5 +1,5 @@
 //! escrownad-ws — два слушателя в одном бинарнике:
-//!   1. **IPC** (`/tmp/skeleton.ws.sock`) — принимает `RenderRequest` от web,
+//!   1. **IPC** (`/tmp/escrownad.ws.sock`) — принимает `RenderRequest` от web,
 //!      рендерит HTML через Tera. Логика session/cookie/auth/page-dispatch.
 //!   2. **TCP WS** (или unix-сокет за nginx) — websocket-gateway для браузера.
 //!      msgpack-протокол, per-connection identity. URL `/ws/{session_id}/`.

@@ -6,7 +6,7 @@
 <main class="home">
   <section class="home__hero">
     <p>
-      <img src="/static/brand/wordmark.png" alt="EscrowNad" style="max-height:48px;height:auto">
+      <img src="/static/brand/wordmark.png" alt="EscrowNad" class="brand-wordmark">
     </p>
     <h1>Settle on proof</h1>
     <p class="lead">

@@ -1,17 +1,13 @@
-# escrownad-ws — production (foothold.me, supervisor + nginx).
-# Hyperion при deploy симлинкует это в `<escrownad-dir>/etc/ws.toml`:
-#
-#   ln -sf deploy/etc/ws.toml etc/ws.toml
+# escrownad-ws — production.
+# Hyperion: ln -sf deploy/etc/ws.toml etc/ws.toml
 
 [ws]
 db_wait_ms = 10000
 env        = "production"
 
-# Браузер коннектится к WS через nginx на forge-ws.foothold.me.
-# Trailing slash обязателен.
-ws_url = "wss://escrownad.com/ws/"
+# Browser WS via nginx on wst.escrownad.com (trailing slash required).
+ws_url = "wss://wst.escrownad.com/ws/"
 
-# Production: nginx → unix-сокет. TCP-порт не используется.
 mode        = "unix"
 socket_path = "/tmp/escrownad_ws.sock"
 ws_port     = 3001
