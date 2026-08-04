@@ -4,28 +4,13 @@
 
 {% block content %}
 <main class="app-main">
-  <div class="app-main__bar">
-    <div>
-      <h1 class="app-main__title">Offers</h1>
-      <p class="app-main__sub muted">Proof-escrow market · USDC on Monad</p>
-    </div>
-    <a class="app-top__cta" href="/deals/new/">Add offer</a>
-  </div>
-
-  {% if not user %}
-  <p class="app-hint muted">Connect wallet (top right) to publish or buy.</p>
-  {% endif %}
-
   <div class="data-table-wrap">
     <table class="data-table">
       <thead>
         <tr>
-          <th>Type</th>
-          <th>Size</th>
-          <th>IPs</th>
-          <th>RIPE</th>
-          <th>Price / IP</th>
-          <th>Total</th>
+          <th>#</th>
+          <th>Asset</th>
+          <th>Price</th>
           <th>Seller</th>
           <th>Status</th>
         </tr>
@@ -33,22 +18,19 @@
       <tbody>
         {% if deals | length == 0 %}
         <tr>
-          <td colspan="8" class="data-table__empty">No offers yet. <a href="/deals/new/">Add the first offer</a>.</td>
+          <td colspan="5" class="data-table__empty">No offers yet.</td>
         </tr>
         {% else %}
         {% for d in deals %}
         <tr class="data-table__row" onclick="location.href='/deals/{{ d.del_id }}/'">
+          <td class="num">{{ d.del_id }}</td>
           <td><code>{{ d.asset_type }}</code></td>
-          <td><code>{{ d.size_label }}</code></td>
-          <td class="num">{{ d.ip_count }}</td>
-          <td><code>{{ d.resource_kind }}</code></td>
-          <td class="num">{{ d.price_per_ip }}</td>
           <td class="num"><strong>{{ d.total_price }}</strong></td>
           <td>
             {% if d.seller_verified %}
-              <span class="badge-ok" title="Seller completed deals before">✓ verified</span>
+              <span class="badge-ok">✓</span>
             {% else %}
-              <span class="muted">new</span>
+              <span class="muted">—</span>
             {% endif %}
           </td>
           <td><span class="status status--{{ d.del_status }}">{{ d.del_status }}</span></td>

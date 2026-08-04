@@ -11,11 +11,12 @@
 
 {% block body_class %}app-shell{% endblock %}
 
-{# Full fintech header: logo | Offers | About | Add offer | wallet #}
 {% block header %}
 <header class="app-top">
   <a class="app-top__logo" href="/deals/">
-    <img src="/static/images/mark.png?v={{ salt }}" alt="" width="28" height="28">
+    {# Light theme: white-field mark; dark theme: dark-field mark #}
+    <img class="app-top__mark when-light" src="/static/images/icon-white.png?v={{ salt }}" alt="" width="28" height="28">
+    <img class="app-top__mark when-dark" src="/static/images/mark.png?v={{ salt }}" alt="" width="28" height="28">
     <span>EscrowNad</span>
   </a>
   <nav class="app-top__nav">
@@ -27,7 +28,6 @@
     <a class="app-top__cta" href="/deals/new/">Add offer</a>
     {% if user %}
       <span class="app-top__chip" data-wallet-address title="Connected wallet">wallet</span>
-      <button type="button" class="app-top__btn" data-wallet-logout>Disconnect</button>
     {% else %}
       <button type="button" class="app-top__cta app-top__cta--solid"
               data-wallet-connect data-redirect-after="/deals/">
@@ -38,7 +38,6 @@
 </header>
 {% endblock header %}
 
-{# Minimal product footer — no Claude/Rust/Synapse stack #}
 {% block footer %}
 <footer class="app-foot">
   <div class="app-foot__left">
@@ -52,9 +51,7 @@
       <span class="when-light">DARK</span>
     </button>
     {% if user %}
-      <button class="app-foot__btn" type="button" data-wallet-logout>
-        Logout
-      </button>
+      <button class="app-foot__btn" type="button" data-wallet-logout>Disconnect</button>
     {% endif %}
   </div>
 </footer>

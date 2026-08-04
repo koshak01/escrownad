@@ -33,12 +33,16 @@ body.app-shell > .brand {
   letter-spacing: 0.02em;
   flex: none;
 }
-.app-top__logo img {
+.app-top__mark {
   width: 28px;
   height: 28px;
   border-radius: 4px;
   object-fit: cover;
+  display: none;
 }
+/* theme classes on <html> — forge theme-mod */
+html.light .app-top__mark.when-light { display: block; }
+html:not(.light) .app-top__mark.when-dark { display: block; }
 .app-top__nav {
   display: flex;
   align-items: center;
