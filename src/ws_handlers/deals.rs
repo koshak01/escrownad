@@ -1,4 +1,6 @@
 //! Deal flow actions — forge ws-handler pattern (see demos.rs). EN-only toasts.
+//!
+//! **Authz:** every mutation checks seller/buyer party (IDOR-safe).
 
 use forge_ws::ActionResp;
 use serde::Deserialize;
@@ -35,16 +37,45 @@ pub struct DealSaveParams {
     pub publish: Option<String>,
 }
 
-/// Create/update draft lot (seller).
+fn require_actor(actor: Option<i64>) -> Result<i64, String> {
+    actor.ok_or_else(|| "authentication required".to_string())
+}
+
+fn is_seller(deal: &Deal, actor: i64) -> bool {
+    deal.seller_usr_id == Some(actor)
+}
+
+fn is_buyer(deal: &Deal, actor: i64) -> bool {
+    deal.buyer_usr_id == Some(actor)
+}
+
+/// Create/update draft lot (seller only).
 pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result<ActionResp, String> {
-    let publish = p.publish.as_deref().map(|s| s == "true" || s == "1" || s == "on").unwrap_or(false);
+    let actor = require_actor(seller_usr_id)?;
+    let publish = p
+        .publish
+        .as_deref()
+        .map(|s| s == "true" || s == "1" || s == "on")
+        .unwrap_or(false);
+
     let mut deal = if let Some(id) = p.id.filter(|i| *i > 0) {
-        app_context()
+        let existing = app_context()
             .db
             .get_deal(id)
             .await
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| "deal not found".to_string())?
+            .ok_or_else(|| "deal not found".to_string())?;
+        if !is_seller(&existing, actor) {
+            return Err("forbidden: only the seller can edit this offer".into());
+        }
+        // Only editable while not past listed market stage (no rewrite after money)
+        if !matches!(
+            existing.del_status.as_str(),
+            "draft" | "verified" | "listed"
+        ) {
+            return Err("offer is locked at this stage".into());
+        }
+        existing
     } else {
         Deal {
             del_status: "draft".into(),
@@ -53,6 +84,7 @@ pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result
             chain_id: "monad".into(),
             del_is_enable: true,
             soft_verified: false,
+            seller_usr_id: Some(actor),
             ..Default::default()
         }
     };
@@ -78,7 +110,11 @@ pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result
     if let Some(v) = p.to_org {
         deal.to_org = Some(v);
     }
-    if let Some(v) = p.seller_wallet.filter(|s| !s.trim().is_empty()) {
+    // Seller wallet: only own linked wallet (ignore spoofed client value)
+    if let Ok(Some(w)) = app_context().db.wallet_address_for_user(actor).await {
+        deal.seller_wallet = Some(w);
+    } else if let Some(v) = p.seller_wallet.filter(|s| !s.trim().is_empty()) {
+        // Allow explicit only if matches normalized format; still bind to actor
         deal.seller_wallet = Some(v);
     }
     if let Some(v) = p.contact_email {
@@ -87,21 +123,10 @@ pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result
     if let Some(raw) = p.del_amount {
         deal.del_amount = forge_fixed_n::FixedN::new(raw);
     }
-    if deal.seller_usr_id.is_none() {
-        deal.seller_usr_id = seller_usr_id;
-    }
-
-    // Prefer linked wallet if seller_wallet empty
-    if deal.seller_wallet.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-        if let Some(uid) = deal.seller_usr_id {
-            if let Ok(Some(w)) = app_context().db.wallet_address_for_user(uid).await {
-                deal.seller_wallet = Some(w);
-            }
-        }
-    }
+    deal.seller_usr_id = Some(actor);
 
     if publish {
-        deal.apply_action("publish", seller_usr_id, None)?;
+        deal.apply_action("publish", Some(actor), None)?;
     }
 
     app_context()
@@ -130,11 +155,49 @@ pub struct DealActionParams {
     pub buyer_wallet: Option<String>,
 }
 
+/// Authorize action by party role.
+fn authorize_action(deal: &Deal, action: &str, actor: i64) -> Result<(), String> {
+    let seller = is_seller(deal, actor);
+    let buyer = is_buyer(deal, actor);
+    match action {
+        "soft_verify" | "list" | "publish" | "accept" | "start_prepare" | "mark_prepared" => {
+            if seller {
+                Ok(())
+            } else {
+                Err("forbidden: seller only".into())
+            }
+        }
+        "request" => {
+            if seller {
+                Err("forbidden: seller cannot buy own offer".into())
+            } else {
+                Ok(())
+            }
+        }
+        "fund" => {
+            if buyer {
+                Ok(())
+            } else {
+                Err("forbidden: buyer only".into())
+            }
+        }
+        "confirm_intent" | "open_dispute" | "cancel" => {
+            if seller || buyer {
+                Ok(())
+            } else {
+                Err("forbidden: party only".into())
+            }
+        }
+        _ => Err(format!("unknown action: {action}")),
+    }
+}
+
 /// Lifecycle transition (want / accept / fund / prepare / confirm / …).
 pub async fn deals_action(
     p: DealActionParams,
     actor_usr_id: Option<i64>,
 ) -> Result<ActionResp, String> {
+    let actor = require_actor(actor_usr_id)?;
     let mut deal = app_context()
         .db
         .get_deal(p.id)
@@ -142,17 +205,22 @@ pub async fn deals_action(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "deal not found".to_string())?;
 
-    let mut buyer_wallet = p.buyer_wallet;
-    // Auto-fill buyer wallet from users2wallets
-    if p.action == "request" && buyer_wallet.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
-        if let Some(uid) = actor_usr_id {
-            if let Ok(Some(w)) = app_context().db.wallet_address_for_user(uid).await {
-                buyer_wallet = Some(w);
-            }
+    authorize_action(&deal, &p.action, actor)?;
+
+    // Never trust client buyer_wallet — bind from session linkage
+    let mut buyer_wallet = None;
+    if p.action == "request" {
+        buyer_wallet = app_context()
+            .db
+            .wallet_address_for_user(actor)
+            .await
+            .map_err(|e| e.to_string())?;
+        if buyer_wallet.is_none() {
+            return Err("no wallet linked to this account".into());
         }
     }
 
-    deal.apply_action(&p.action, actor_usr_id, buyer_wallet)?;
+    deal.apply_action(&p.action, Some(actor), buyer_wallet)?;
 
     app_context()
         .db

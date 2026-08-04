@@ -259,10 +259,7 @@ pub async fn wallet_login<C: WsConnAuth>(
         .map_err(|e| format!("redis: {e}"))?;
     conn.set_auth(user.usr_id, user.usr_hash, user.usr_is_staff, roles);
 
-    let redirect = params
-        .redirect_after
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "/deals/".to_string());
+    let redirect = sanitize_redirect(params.redirect_after.as_deref());
 
     info!(usr_id = user.usr_id, %address, is_new = user.is_new, "wallet signed in");
     Ok(WalletLoginResp {
@@ -271,6 +268,22 @@ pub async fn wallet_login<C: WsConnAuth>(
         address,
         is_new: user.is_new,
     })
+}
+
+/// Only same-origin relative paths (block open redirect //evil.com, https://…).
+fn sanitize_redirect(raw: Option<&str>) -> String {
+    let fallback = "/deals/".to_string();
+    let Some(s) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
+        return fallback;
+    };
+    if !s.starts_with('/') || s.starts_with("//") || s.contains('\\') {
+        return fallback;
+    }
+    // No scheme-relative or control chars
+    if s.contains("://") || s.chars().any(|c| c.is_control()) {
+        return fallback;
+    }
+    s.to_string()
 }
 
 /// IPC row for find_or_create wallet user.
