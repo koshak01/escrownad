@@ -1,0 +1,26 @@
+{# Project login modal — password first, wallet second (operator canon).
+   Overrides forge/templates/modals/login.html.tera via project templates root. #}
+<div class="ds-dialog ds-dialog--info">
+  <p class="ds-dialog__text">Вход</p>
+  <form class="ds-dialog__form">
+    {{ <field name="email"    type="text"     placeholder="email"  required={true} /> }}
+    {{ <field name="password" type="password" placeholder="пароль" required={true} /> }}
+    {{ <hidden name="redirect_after" value={redirect_after} /> }}
+
+    <div class="ds-dialog__actions">
+      {{ <button label="Войти"  type="submit" variant="primary" handler="login" icon="login" /> }}
+      {{ <button label="Отмена"               variant="ghost"   modal_close={true} /> }}
+    </div>
+  </form>
+
+  <div class="wallet-login">
+    <p class="wallet-login__or">или</p>
+    <button type="button"
+            class="ds-btn"
+            data-wallet-connect
+            data-redirect-after="{{ redirect_after }}">
+      Кошелёк (MetaMask)
+    </button>
+    <p class="wallet-login__status muted" data-wallet-status></p>
+  </div>
+</div>

@@ -17,6 +17,7 @@ pub mod chain;
 pub mod models;
 pub mod observer;
 pub mod pages;
+pub mod wallet_auth;
 pub mod ws_handlers;
 
 use std::sync::{Arc, OnceLock};
@@ -156,6 +157,11 @@ pub enum DbCommand {
     SaveDeal {
         data: models::Deal,
     },
+
+    /// Find or create forge user for lowercase 0x EVM address (wallet login).
+    WalletFindOrCreate {
+        address: String,
+    },
 }
 
 // large_enum_variant: `Admin` несёт весь AdminDbResponse (большой по дизайну) —
@@ -175,6 +181,7 @@ pub enum DbResponse {
     // deals
     Deals(Vec<models::Deal>),
     Deal(Option<models::Deal>),
+    WalletUser(wallet_auth::WalletUserRow),
     Ok,
 }
 
@@ -254,6 +261,10 @@ forge_ipc::client! {
             = ListDealsFiltered { filter, sort } -> Deals(v) = v;
         pub fn get_deal(id: i64) -> Option<models::Deal> = GetDeal { id } -> Deal(v) = v;
         pub fn save_deal(data: models::Deal) = SaveDeal { data } -> Ok;
+
+        /// Find-or-create user by EVM wallet address (lowercase 0x…).
+        pub fn wallet_find_or_create(address: String) -> wallet_auth::WalletUserRow
+            = WalletFindOrCreate { address } -> WalletUser(v) = v;
     }
 }
 

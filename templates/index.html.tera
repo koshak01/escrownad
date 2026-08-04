@@ -10,7 +10,7 @@
    CSS — ТОЛЬКО файлом (`landing.css`). Inline `<style>` запрещён
    (design_baseline §5: прод-CSP режет его молча).
 
-   Auth сейчас: login / password (forge modal). Wallet — вторым шагом позже.
+   Auth: login/password (forge modal) + MetaMask wallet (data-wallet-connect).
    Redirect после входа: /cabinet/ (продукт), не /admin/.
 
    Cover: static/images/cover.webp (Дедал, vault + violet speed, left dark). #}
@@ -33,30 +33,33 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mulish:wght@200;300;400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/static/css/tokens.css?v={{ salt }}">
+  {# base — ds-dialog login modal (password). landing stays dark overlay. #}
+  <link rel="stylesheet" href="/shared/css/base.css?v={{ salt }}">
   <link rel="stylesheet" href="/shared/css/toast.css?v={{ salt }}">
   <link rel="stylesheet" href="/static/css/landing.css?v={{ salt }}">
+  <link rel="stylesheet" href="/static/css/site.css?v={{ salt }}">
 </head>
 <body>
   <div class="wrap">
     <div class="mark">
-      {# Знак — sealed vault + proof (Дедал). Пока SVG из brand pack. #}
       <img class="seal" src="/static/images/mark.png?v={{ salt }}" alt="" width="36" height="36">
       <span>ESCROW<b>·</b>NAD</span>
     </div>
     <h1 class="lead">Settle on proof.</h1>
-    <p class="sub">Доступ — по учётной записи.</p>
-    <div class="enter">
+    <p class="sub">Доступ — по учётной записи или кошельку.</p>
+    <div class="enter enter--row">
       {% if user %}
         <a href="/cabinet/">Войти</a>
       {% else %}
         <button type="button" data-modal="login" data-redirect-after="/cabinet/">Войти</button>
+        <button type="button" class="enter-secondary" data-wallet-connect data-redirect-after="/cabinet/">Кошелёк</button>
       {% endif %}
     </div>
+    <p class="sub" data-wallet-status></p>
   </div>
   <div class="foot">© EscrowNad · приватный доступ · Monad</div>
 
-  {# Аноним: WS-стек forge для модалки логина (open_modal → login → redirect).
-     Залогиненному не нужен — кнопка ведёт сразу в /cabinet/. #}
+  {# Аноним: WS + login modal + wallet (personal_sign). #}
   {% if not user %}
   <input type="hidden" id="ws_url" value="{{ ws_url }}">
   <div id="toast-root"></div>
@@ -81,6 +84,7 @@
   }
   </script>
   <script type="module" src="/shared/js/bootstrap.js?v={{ salt }}"></script>
+  <script src="/static/js/wallet.js?v={{ salt }}"></script>
   {% endif %}
 </body>
 </html>

@@ -17,6 +17,9 @@ use axum::Router;
 use axum::routing::get;
 use forge_ipc::{CommandHandler, serve_ipc};
 use forge_session::RedisClient;
+use escrownad::wallet_auth::{
+    ChallengeParams, ChallengeResp, WalletChallenges, WalletLoginParams, WalletLoginResp,
+};
 use escrownad::ws_handlers::echo::EchoParams;
 use escrownad::ws_handlers::{
     DealActionParams, DealSaveParams, DemoDeleteParams, DemoSaveParams,
@@ -43,6 +46,8 @@ struct WsState {
     redis: RedisClient,
     notifier: Arc<NotifierClient>,
     hub: Arc<Hub>,
+    /// Pending EVM personal_sign challenges (wallet login).
+    wallet_challenges: Arc<WalletChallenges>,
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -126,6 +131,11 @@ forge_admin::wsgate_handler_with_admin! {
             | forge_ws::AuthRequirement::Public;
         async fn deals_action (&self, conn: &_, params: DealActionParams) -> ActionResp
             | forge_ws::AuthRequirement::Public;
+        // EVM wallet login (MetaMask / personal_sign). Public — anon flow.
+        async fn wallet_challenge(&self, conn: &_, params: ChallengeParams) -> ChallengeResp
+            | forge_ws::AuthRequirement::Public;
+        async fn wallet_login(&self, conn: &_, params: WalletLoginParams) -> WalletLoginResp
+            | forge_ws::AuthRequirement::Public;
     }
 }
 
@@ -200,6 +210,20 @@ impl WsState {
     }
     async fn deals_action(&self, conn: &WsConn, p: DealActionParams) -> Result<ActionResp, String> {
         escrownad::ws_handlers::deals_action(p, conn.usr_id()).await
+    }
+    async fn wallet_challenge(
+        &self,
+        conn: &WsConn,
+        p: ChallengeParams,
+    ) -> Result<ChallengeResp, String> {
+        escrownad::wallet_auth::wallet_challenge(&self.wallet_challenges, conn, p).await
+    }
+    async fn wallet_login(
+        &self,
+        conn: &WsConn,
+        p: WalletLoginParams,
+    ) -> Result<WalletLoginResp, String> {
+        escrownad::wallet_auth::wallet_login(&self.wallet_challenges, &self.redis, conn, p).await
     }
 }
 
@@ -301,6 +325,7 @@ async fn run() -> Result<()> {
         redis,
         notifier,
         hub: hub.clone(),
+        wallet_challenges: WalletChallenges::new(),
     };
 
     // Билдер, а не литерал: новые опции ядра добавляются молча, без правки

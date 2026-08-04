@@ -47,3 +47,41 @@
   height: auto;
   width: auto;
 }
+
+/* wallet login (modal + landing) */
+.wallet-login {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+.wallet-login__or {
+  margin: 0 0 0.75rem;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wallet-login__status {
+  margin-top: 0.5rem;
+  font-size: 13px;
+  min-height: 1.2em;
+}
+.enter--row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.enter a.enter-secondary,
+.enter button.enter-secondary {
+  color: var(--muted);
+  border-color: var(--muted);
+}
+.enter a.enter-secondary:hover,
+.enter button.enter-secondary:hover {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: none;
+}

@@ -134,6 +134,59 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 data.save(&self.pool).await.map_err(|e| e.to_string())?;
                 Ok(DbResponse::Ok)
             }
+
+            DbCommand::WalletFindOrCreate { address } => {
+                // address already normalized lowercase 0x by wallet_auth
+                let existing: Option<(i64,)> = forge_db::sqlx::query_as(include_str!(
+                    "../../sqls/wallets_find_user.sql"
+                ))
+                .bind(&address)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+
+                if let Some((usr_id,)) = existing {
+                    let row: (String, bool, bool) = forge_db::sqlx::query_as(
+                        "SELECT usr_hash, usr_is_staff, usr_is_enable FROM users WHERE usr_id = $1",
+                    )
+                    .bind(usr_id)
+                    .fetch_one(&self.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                    return Ok(DbResponse::WalletUser(escrownad::wallet_auth::WalletUserRow {
+                        usr_id,
+                        usr_hash: row.0,
+                        usr_is_staff: row.1,
+                        usr_is_enable: row.2,
+                        is_new: false,
+                    }));
+                }
+
+                let usr_hash = escrownad::wallet_auth::new_usr_hash();
+                let descr = escrownad::wallet_auth::wallet_descr(&address);
+                let (usr_id, usr_hash, usr_is_staff, usr_is_enable): (i64, String, bool, bool) =
+                    forge_db::sqlx::query_as(include_str!("../../sqls/wallets_insert_user.sql"))
+                        .bind(&usr_hash)
+                        .bind(&descr)
+                        .fetch_one(&self.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
+
+                let _: (i64,) = forge_db::sqlx::query_as(include_str!("../../sqls/wallets_link.sql"))
+                    .bind(usr_id)
+                    .bind(&address)
+                    .fetch_one(&self.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                Ok(DbResponse::WalletUser(escrownad::wallet_auth::WalletUserRow {
+                    usr_id,
+                    usr_hash,
+                    usr_is_staff,
+                    usr_is_enable,
+                    is_new: true,
+                }))
+            }
         }
     }
 }

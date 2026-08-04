@@ -13,3 +13,7 @@
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
 {% endblock %}
 
+{% block scripts_extra %}
+<script src="/static/js/wallet.js?v={{ salt }}"></script>
+{% endblock %}
+
