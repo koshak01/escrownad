@@ -187,6 +187,17 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                     is_new: true,
                 }))
             }
+
+            DbCommand::WalletAddressForUser { usr_id } => {
+                let row: Option<(String,)> = forge_db::sqlx::query_as(include_str!(
+                    "../../sqls/wallets_find_by_user.sql"
+                ))
+                .bind(usr_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                Ok(DbResponse::WalletAddress(row.map(|r| r.0)))
+            }
         }
     }
 }

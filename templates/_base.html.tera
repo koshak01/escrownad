@@ -1,10 +1,6 @@
 {% extends "_base_core.html.tera" %}
 
-{# EscrowNad brand favicon — sealed vault / proof (Дедал).
-   Полный набор: .ico для краулеров (Google s2 SVG не ест), SVG для
-   современных браузеров, PNG fallback, apple-touch для iOS. #}
 {% block favicon %}
-{# Canonical mark = vault+bolt (brand/icon.png → apple-touch). Not N monogram. #}
 <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
 <link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
 <link rel="icon" type="image/png" sizes="192x192" href="/static/images/icon-192.png?v={{ salt }}">
@@ -13,7 +9,39 @@
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
 {% endblock %}
 
+{# Fintech-style header: Offers nav + Connect wallet top-right (wallet-only auth). #}
+{% block header_nav %}
+<nav class="nav nav--site en-nav">
+  <div class="nav-item">
+    <a class="nav-link" href="/deals/">Offers</a>
+  </div>
+  <div class="nav-item">
+    <a class="nav-link" href="/deals/new/">Add offer</a>
+  </div>
+  <div class="nav-item">
+    <a class="nav-link" href="/oracle/">Oracle</a>
+  </div>
+</nav>
+{% endblock header_nav %}
+
+{% block header_actions %}
+<div class="header-actions wallet-header">
+  {% if user %}
+    <span class="wallet-chip" data-wallet-address title="Connected">connected</span>
+    <button type="button" class="ds-btn ds-btn--ghost wallet-header__btn" data-wallet-logout>
+      Disconnect
+    </button>
+  {% else %}
+    <button type="button"
+            class="ds-btn ds-btn--primary wallet-header__btn"
+            data-wallet-connect
+            data-redirect-after="/deals/">
+      Connect wallet
+    </button>
+  {% endif %}
+</div>
+{% endblock header_actions %}
+
 {% block scripts_extra %}
 <script src="/static/js/wallet.js?v={{ salt }}"></script>
 {% endblock %}
-

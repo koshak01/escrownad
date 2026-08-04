@@ -162,6 +162,9 @@ pub enum DbCommand {
     WalletFindOrCreate {
         address: String,
     },
+    WalletAddressForUser {
+        usr_id: i64,
+    },
 }
 
 // large_enum_variant: `Admin` несёт весь AdminDbResponse (большой по дизайну) —
@@ -182,6 +185,7 @@ pub enum DbResponse {
     Deals(Vec<models::Deal>),
     Deal(Option<models::Deal>),
     WalletUser(wallet_auth::WalletUserRow),
+    WalletAddress(Option<String>),
     Ok,
 }
 
@@ -265,6 +269,8 @@ forge_ipc::client! {
         /// Find-or-create user by EVM wallet address (lowercase 0x…).
         pub fn wallet_find_or_create(address: String) -> wallet_auth::WalletUserRow
             = WalletFindOrCreate { address } -> WalletUser(v) = v;
+        pub fn wallet_address_for_user(usr_id: i64) -> Option<String>
+            = WalletAddressForUser { usr_id } -> WalletAddress(v) = v;
     }
 }
 

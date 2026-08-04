@@ -1,51 +1,38 @@
 {% extends "_base.html.tera" %}
 
-{% block title %}Cabinet · EscrowNad{% endblock %}
+{% block title %}My deals · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="home">
-  <section class="home__hero">
-    <h1>Cabinet</h1>
-    <p class="lead">One account — seller and buyer sides. Settlement: <strong>USDC</strong>.</p>
-    <p>
-      <a class="ds-btn ds-btn--primary" href="/deals/new/">New lot</a>
-      <a class="ds-btn" href="/deals/">Search</a>
-      <a class="ds-btn" href="/oracle/">Oracle</a>
-    </p>
-    {% if not logged_in %}
-      <p class="muted">Not logged in — showing market board. <a href="/admin/">Login</a> to filter your lots.</p>
-    {% endif %}
-  </section>
+<main class="app-page">
+  <div class="app-page__head">
+    <div>
+      <h1>My deals</h1>
+      <p class="lead muted">Offers and buys linked to your wallet.</p>
+    </div>
+    <a class="ds-btn ds-btn--primary" href="/deals/new/">Add offer</a>
+  </div>
 
-  <section>
-    {% if deals | length == 0 %}
-      <p class="muted">No deals yet. <a href="/deals/new/">Create a lot</a>.</p>
-    {% else %}
-      <table class="ds-table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Asset</th>
-            <th>Prefix</th>
-            <th>Status</th>
-            <th>Side</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for d in deals %}
-          <tr>
-            <td>{{ d.del_title | default(value="—") }}</td>
-            <td><code>{{ d.asset_type }}</code> / {{ d.resource_kind }}</td>
-            <td><code>{{ d.prefix }}</code></td>
-            <td><code>{{ d.del_status }}</code></td>
-            <td class="muted">seller/buyer</td>
-            <td><a href="/deals/{{ d.del_id }}/">open</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
-  </section>
+  {% if not logged_in %}
+  <p class="banner-connect">
+    <button type="button" class="ds-btn ds-btn--primary" data-wallet-connect data-redirect-after="/deals/">
+      Connect wallet
+    </button>
+  </p>
+  {% elif deals | length == 0 %}
+  <p class="muted">No deals yet. <a href="/deals/">Browse offers</a> or <a href="/deals/new/">add one</a>.</p>
+  {% else %}
+  <div class="offer-grid">
+    {% for d in deals %}
+    <a class="offer-card" href="/deals/{{ d.del_id }}/">
+      <div class="offer-card__top">
+        <span class="status status--{{ d.del_status }}">{{ d.del_status }}</span>
+        <code>{{ d.resource_kind }}</code>
+      </div>
+      <h2 class="offer-card__title">{{ d.del_title | default(value="Untitled") }}</h2>
+      <p class="offer-card__prefix"><code>{{ d.prefix }}</code></p>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
 </main>
 {% endblock %}

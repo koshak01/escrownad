@@ -1,5 +1,4 @@
-{# escrownad — private closed-app splash (Kairos/Oculus canon).
-   EN only (public/hackathon surface). Auth: password modal + one wallet button. #}
+{# Private splash — wallet-only. Connect top-right (fintech). After connect → /deals/. EN only. #}
 <!doctype html>
 <html lang="en">
 <head>
@@ -22,25 +21,39 @@
   <link rel="stylesheet" href="/static/css/landing.css?v={{ salt }}">
   <link rel="stylesheet" href="/static/css/site.css?v={{ salt }}">
 </head>
-<body>
-  <div class="wrap">
-    <div class="mark">
-      <img class="seal" src="/static/images/mark.png?v={{ salt }}" alt="" width="36" height="36">
+<body class="landing-app">
+  <header class="app-bar">
+    <a class="app-bar__brand" href="/">
+      <img src="/static/images/mark.png?v={{ salt }}" alt="" width="28" height="28">
       <span>ESCROW<b>·</b>NAD</span>
-    </div>
-    <h1 class="lead">Settle on proof.</h1>
-    <p class="sub">Access by account or wallet.</p>
-    <div class="enter enter--row">
+    </a>
+    <div class="app-bar__actions">
       {% if user %}
-        <a href="/cabinet/">Enter</a>
+        <a class="ds-btn ds-btn--primary" href="/deals/">Open offers</a>
       {% else %}
-        <button type="button" data-modal="login" data-redirect-after="/cabinet/">Sign in</button>
-        <button type="button" class="enter-secondary" data-wallet-connect data-redirect-after="/cabinet/">Connect wallet</button>
+        <button type="button"
+                class="ds-btn ds-btn--primary"
+                data-wallet-connect
+                data-redirect-after="/deals/">
+          Connect wallet
+        </button>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="wrap">
+    <h1 class="lead">Settle on proof.</h1>
+    <p class="sub">Proof-escrow on Monad. USDC unlocks only on external fact.</p>
+    <div class="enter">
+      {% if user %}
+        <a href="/deals/">Browse offers</a>
+      {% else %}
+        <button type="button" data-wallet-connect data-redirect-after="/deals/">Connect wallet</button>
       {% endif %}
     </div>
     <p class="sub" data-wallet-status></p>
   </div>
-  <div class="foot">© EscrowNad · private access · Monad</div>
+  <div class="foot">© EscrowNad · Monad</div>
 
   {% if not user %}
   <input type="hidden" id="ws_url" value="{{ ws_url }}">
@@ -67,6 +80,8 @@
   </script>
   <script type="module" src="/shared/js/bootstrap.js?v={{ salt }}"></script>
   <script src="/static/js/wallet.js?v={{ salt }}"></script>
+  {% else %}
+  {# Logged-in still needs wallet.js for disconnect / address chip on other pages via _base #}
   {% endif %}
 </body>
 </html>

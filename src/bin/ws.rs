@@ -126,11 +126,11 @@ forge_admin::wsgate_handler_with_admin! {
             | forge_ws::AuthRequirement::Roles(&["manager", "admin"]);
         async fn demos_delete(&self, _conn: &_, params: DemoDeleteParams) -> ActionResp
             | forge_ws::AuthRequirement::Roles(&["manager", "admin"]);
-        // Deal flow (cabinet): public for demo; login binds seller/buyer usr_id.
+        // Deal flow: wallet session required for mutations.
         async fn deals_save   (&self, conn: &_, params: DealSaveParams) -> ActionResp
-            | forge_ws::AuthRequirement::Public;
+            | forge_ws::AuthRequirement::Authenticated;
         async fn deals_action (&self, conn: &_, params: DealActionParams) -> ActionResp
-            | forge_ws::AuthRequirement::Public;
+            | forge_ws::AuthRequirement::Authenticated;
         // EVM wallet login (MetaMask / personal_sign). Public — anon flow.
         async fn wallet_challenge(&self, conn: &_, params: ChallengeParams) -> ChallengeResp
             | forge_ws::AuthRequirement::Public;

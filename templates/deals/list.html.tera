@@ -1,45 +1,41 @@
 {% extends "_base.html.tera" %}
 
-{% block title %}Search · EscrowNad{% endblock %}
+{% block title %}Offers · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="home">
-  <section class="home__hero">
-    <h1>Search deals</h1>
-    <p class="lead">Market lots and active deals. Settlement: <strong>USDC</strong>.</p>
-    <p>
-      <a class="ds-btn ds-btn--primary" href="/deals/new/">New lot</a>
-      <a class="ds-btn" href="/cabinet/">Cabinet</a>
-    </p>
-  </section>
+<main class="app-page">
+  <div class="app-page__head">
+    <div>
+      <h1>Offers</h1>
+      <p class="lead muted">IPv4 proof-escrow market. Settlement: <strong>USDC</strong> on Monad.</p>
+    </div>
+    <a class="ds-btn ds-btn--primary" href="/deals/new/">Add offer</a>
+  </div>
 
-  <section>
-    {% if deals | length == 0 %}
-      <p class="muted">No deals. <a href="/deals/new/">Create a lot</a>.</p>
-    {% else %}
-      <table class="ds-table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Type</th>
-            <th>Prefix</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for d in deals %}
-          <tr>
-            <td>{{ d.del_title | default(value="—") }}</td>
-            <td><code>{{ d.asset_type }}</code></td>
-            <td><code>{{ d.prefix }}</code></td>
-            <td><code>{{ d.del_status }}</code></td>
-            <td><a href="/deals/{{ d.del_id }}/">open</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
-  </section>
+  {% if not user %}
+  <p class="banner-connect muted">
+    Connect a wallet (top right) to publish offers or buy.
+  </p>
+  {% endif %}
+
+  {% if deals | length == 0 %}
+    <p class="muted">No offers yet. <a href="/deals/new/">Add the first offer</a>.</p>
+  {% else %}
+    <div class="offer-grid">
+      {% for d in deals %}
+      <a class="offer-card" href="/deals/{{ d.del_id }}/">
+        <div class="offer-card__top">
+          <span class="status status--{{ d.del_status }}">{{ d.del_status }}</span>
+          <code>{{ d.resource_kind }}</code>
+        </div>
+        <h2 class="offer-card__title">{{ d.del_title | default(value="Untitled offer") }}</h2>
+        <p class="offer-card__prefix"><code>{{ d.prefix }}</code></p>
+        <p class="offer-card__meta muted">
+          {{ d.asset_type }} · USDC · {{ d.chain_id }}
+        </p>
+      </a>
+      {% endfor %}
+    </div>
+  {% endif %}
 </main>
 {% endblock %}

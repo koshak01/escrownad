@@ -123,6 +123,23 @@
     }
   }
 
+  const STORAGE_KEY = "escrownad_wallet";
+
+  function rememberAddress(address) {
+    try {
+      if (address) sessionStorage.setItem(STORAGE_KEY, address);
+      else sessionStorage.removeItem(STORAGE_KEY);
+    } catch (_) {}
+    setAddress(address || "");
+  }
+
+  function restoreAddress() {
+    try {
+      const a = sessionStorage.getItem(STORAGE_KEY);
+      if (a) setAddress(a);
+    } catch (_) {}
+  }
+
   async function connect(redirectAfter, prefer) {
     try {
       setStatus("Requesting wallet…");
@@ -135,17 +152,18 @@
       const name = providerName(provider);
       setStatus("Connecting " + name + "…");
       const address = await requestAccounts(provider);
-      setAddress(address);
+      rememberAddress(address);
       setStatus("Challenge…");
       const ch = await window.ws.request("wallet_challenge", { address });
       if (!ch || !ch.message) throw new Error("Empty challenge from server");
       setStatus("Sign in " + name + "…");
       const signature = await personalSign(provider, ch.message, address);
       setStatus("Signing in…");
+      const destDefault = "/deals/";
       const resp = await window.ws.request("wallet_login", {
         address,
         signature,
-        redirect_after: redirectAfter || "/cabinet/",
+        redirect_after: redirectAfter || destDefault,
       });
       if (!resp || !resp.ok) throw new Error("Sign-in rejected");
       const msg = resp.is_new
@@ -153,7 +171,7 @@
         : "Signed in with " + name;
       toast("success", msg);
       setStatus(msg);
-      window.location.href = resp.redirect || redirectAfter || "/cabinet/";
+      window.location.href = resp.redirect || redirectAfter || destDefault;
     } catch (e) {
       console.error("[wallet]", e);
       const text = friendlyError(e);
@@ -162,18 +180,50 @@
     }
   }
 
+  async function logout() {
+    try {
+      await waitWs(3000);
+      if (window.ws && window.ws.request) {
+        await window.ws.request("logout", {}).catch(() => {});
+      }
+    } finally {
+      rememberAddress("");
+      window.location.href = "/";
+    }
+  }
+
   document.addEventListener("click", (ev) => {
+    const logoutEl =
+      ev.target && ev.target.closest && ev.target.closest("[data-wallet-logout]");
+    if (logoutEl) {
+      ev.preventDefault();
+      logout();
+      return;
+    }
     const el = ev.target && ev.target.closest && ev.target.closest("[data-wallet-connect]");
     if (!el) return;
     ev.preventDefault();
     const redirect =
       el.getAttribute("data-redirect-after") ||
       el.dataset.redirectAfter ||
-      "/cabinet/";
+      "/deals/";
     const prefer =
       el.getAttribute("data-wallet-prefer") || el.dataset.walletPrefer || "";
     connect(redirect, prefer);
   });
 
-  window.EscrowWallet = { connect, hasProvider, getProvider, shortAddr, providerName };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restoreAddress);
+  } else {
+    restoreAddress();
+  }
+
+  window.EscrowWallet = {
+    connect,
+    logout,
+    hasProvider,
+    getProvider,
+    shortAddr,
+    providerName,
+  };
 })();

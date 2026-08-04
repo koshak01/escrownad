@@ -1,29 +1,40 @@
 {% extends "_base.html.tera" %}
 
-{% block title %}New lot · EscrowNad{% endblock %}
+{% block title %}Add offer · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="home">
-  <section class="home__hero">
-    <p class="muted"><a href="/cabinet/">← cabinet</a></p>
-    <h1>New lot</h1>
-    <p class="lead">v1 asset = IP (RIPE). Settlement USDC. Domain / work — later.</p>
-  </section>
+<main class="app-page">
+  <p class="muted"><a href="/deals/">← Offers</a></p>
+  <h1>Add offer</h1>
+  <p class="lead muted">v1 asset = IPv4 (RIPE PA/PI). Settlement USDC. Verification runs after you publish.</p>
 
-  <section>
+  {% if not user %}
+  <p class="banner-connect">
+    <button type="button" class="ds-btn ds-btn--primary" data-wallet-connect data-redirect-after="/deals/new/">
+      Connect wallet
+    </button>
+    to create an offer.
+  </p>
+  {% else %}
+  <section class="offer-form card">
     <form class="ds-dialog__form">
       {{ <field name="del_title" type="text" label="Title" placeholder="IPv4 /24 PI transfer" required={true} /> }}
-      {{ <field name="asset_type" type="text" label="Asset type" placeholder="ip" /> }}
-      {{ <field name="resource_kind" type="text" label="RIPE kind PA|PI" placeholder="PI" /> }}
+      {{ <field name="resource_kind" type="text" label="RIPE kind (PA or PI)" placeholder="PI" required={true} /> }}
       {{ <field name="prefix" type="text" label="Prefix / block" placeholder="176.120.88.0/21" required={true} /> }}
-      {{ <field name="from_org" type="text" label="From org" /> }}
-      {{ <field name="to_org" type="text" label="To org (buyer LIR)" /> }}
-      {{ <field name="seller_wallet" type="text" label="Seller wallet (Monad)" /> }}
-      {{ <field name="contact_email" type="text" label="Contact email (soft verify IP)" /> }}
+      {{ <field name="from_org" type="text" label="From organization" /> }}
+      {{ <field name="to_org" type="text" label="To organization (buyer)" /> }}
+      {{ <field name="seller_wallet" type="text" label="Seller wallet (auto-filled if empty)" placeholder="0x…" /> }}
+      {{ <field name="contact_email" type="text" label="Contact email (soft verify)" /> }}
       {{ <field name="del_note" type="textarea" label="Notes" /> }}
-      {{ <field name="del_amount" type="text" label="Amount raw (×1e8)" /> }}
-      {{ <form_actions handler="deals_save" cancel_url="/cabinet/" /> }}
+      {{ <field name="del_amount" type="text" label="Amount (raw ×1e8 USDC units)" placeholder="1000000000" /> }}
+      {{ <hidden name="asset_type" value="ip" /> }}
+      {{ <hidden name="publish" value="true" /> }}
+      <div class="ds-dialog__actions">
+        {{ <button label="Publish offer" type="submit" variant="primary" handler="deals_save" /> }}
+        <a class="ds-btn" href="/deals/">Cancel</a>
+      </div>
     </form>
   </section>
+  {% endif %}
 </main>
 {% endblock %}

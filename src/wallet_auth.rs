@@ -262,7 +262,7 @@ pub async fn wallet_login<C: WsConnAuth>(
     let redirect = params
         .redirect_after
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "/cabinet/".to_string());
+        .unwrap_or_else(|| "/deals/".to_string());
 
     info!(usr_id = user.usr_id, %address, is_new = user.is_new, "wallet signed in");
     Ok(WalletLoginResp {

@@ -173,23 +173,11 @@ impl Deal {
                 }
                 self.del_status = ACCEPTED.into();
             }
-            "start_prepare" => {
-                if self.del_status != ACCEPTED {
-                    return Err("prepare only after accept".into());
-                }
-                self.del_status = PREPARING.into();
-            }
-            "mark_prepared" => {
-                if self.del_status != PREPARING {
-                    return Err("mark_prepared only while preparing".into());
-                }
-                self.del_status = PREPARED.into();
-            }
+            // Product order: accept → buyer funds → seller prepares → ready → confirm → wait oracle
             "fund" => {
-                if self.del_status != PREPARED {
-                    return Err("fund only after prepared".into());
+                if self.del_status != ACCEPTED {
+                    return Err("fund only after seller accepted".into());
                 }
-                // mock USDC lock → awaiting oracle
                 let hash = self.del_hash.clone();
                 let buyer = self
                     .buyer_wallet
@@ -197,7 +185,33 @@ impl Deal {
                     .or(buyer_wallet)
                     .unwrap_or_else(|| "0xBuyer".into());
                 self.lock_tx = Some(crate::chain::mock_fund_tx(&hash, &buyer));
+                self.del_status = FUNDED.into();
+            }
+            "start_prepare" => {
+                if self.del_status != FUNDED {
+                    return Err("prepare only after USDC is funded".into());
+                }
+                self.del_status = PREPARING.into();
+            }
+            "mark_prepared" => {
+                if self.del_status != PREPARING {
+                    return Err("mark ready only while preparing".into());
+                }
+                self.del_status = PREPARED.into();
+            }
+            "confirm_intent" => {
+                if self.del_status != PREPARED {
+                    return Err("confirm only after seller marked ready".into());
+                }
                 self.del_status = AWAITING_PROOF.into();
+            }
+            // Publish = soft verify + list (seller one-shot)
+            "publish" => {
+                if !matches!(self.del_status.as_str(), DRAFT | VERIFIED) {
+                    return Err("publish only from draft/verified".into());
+                }
+                self.soft_verified = true;
+                self.del_status = LISTED.into();
             }
             "open_dispute" => {
                 if !matches!(

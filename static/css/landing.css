@@ -82,3 +82,48 @@ body::before {
   padding: 22px clamp(28px, 8vw, 140px);
   font-weight: 300; font-size: 12px; color: var(--muted); letter-spacing: .14em;
 }
+
+/* Fintech app bar on splash (Connect wallet top-right) */
+.landing-app .wrap { padding-top: 0; }
+.landing-app .app-bar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem clamp(28px, 8vw, 140px);
+}
+.landing-app .app-bar__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.28em;
+}
+.landing-app .app-bar__brand b { color: var(--accent); }
+.landing-app .app-bar__brand img {
+  width: 32px; height: 32px;
+  border-radius: var(--radius);
+  object-fit: cover;
+}
+.landing-app .app-bar__actions .ds-btn--primary {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: var(--accent-fg);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 11px 22px;
+  transition: box-shadow 0.2s, opacity 0.2s;
+}
+.landing-app .app-bar__actions .ds-btn--primary:hover {
+  box-shadow: 0 0 28px rgba(110, 84, 255, 0.35);
+}
