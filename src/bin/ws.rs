@@ -264,41 +264,14 @@ async fn run() -> Result<()> {
     info!(salt = %global.salt, constants = global.constants.len(), env = ?global.env,
           ws_url = %global.ws_url, "global context loaded");
 
-    // Шаблоны: ядерные forge (templates/ в корне репозитория forge) +
-    // проектные skeleton (templates/ рядом с этим бинарём). cwd при запуске
-    // через cargo run / supervisor = `forge/skeleton`, поэтому ядерные —
-    // `../templates`, не `../forge/templates`. Skeleton — единственный
-    // проект внутри forge-репы; остальные проекты лежат **рядом** с forge
-    // (synapse, ikru_me) и используют `../forge/templates`.
+    // Templates: forge core + project templates/.
     let renderer =
         Renderer::with_roots(&["../forge/templates", "templates"], Arc::new(global)).context("renderer init")?;
     let hub = Hub::new();
     let notifier = Arc::new(NotifierClient::spawn());
     let renderer_arc = Arc::new(RwLock::new(renderer));
 
-    // ДЕМО live-push в Mini App: /miniapp/demo подписан на канал "miniapp_demo".
-    // Каждые 10с шлём heartbeat → открытый мини-апп обновляет строку #live (через
-    // dom-events). Так же реальные проекты пушат свои события: «сервис запущен»,
-    // обновления данных и т.п. — hub.frame_publish(channel, …) или адресно
-    // hub.frame_to_route(usr_id, route, …).
-    {
-        let hub_demo = hub.clone();
-        tokio::spawn(async move {
-            let mut tick = tokio::time::interval(std::time::Duration::from_secs(10));
-            loop {
-                tick.tick().await;
-                let now = chrono::Local::now().format("%H:%M:%S").to_string();
-                let html = format!("🟢 сервис жив · {now}");
-                hub_demo
-                    .frame_publish(
-                        "miniapp_demo",
-                        forge_ws::wsgate::Frame::new().update("#live", &html),
-                    )
-                    .await;
-            }
-        });
-    }
-
+    
     init_app_context(AppContext {
         db: db.clone(),
         redis: redis.clone(),
@@ -344,7 +317,7 @@ async fn run() -> Result<()> {
         // Если проект хочет принимать peer-tool команды от synapse-relay'я —
         // подключает дополнительный роут `/peer-tool/{usr_hash}/` (см. ниже) и кладёт
         // в `WsAppState::peer_ws` собранный `PeerWs { validator, registry }`.
-        // По умолчанию skeleton — UI-only, `peer_ws: None`.
+        // По умолчанию UI-only — UI-only, `peer_ws: None`.
         let app = Router::new()
             .route(
                 "/ws/{session_id}/",

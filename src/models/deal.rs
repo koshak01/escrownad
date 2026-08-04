@@ -110,53 +110,23 @@ impl Deal {
 
     /// Observer: only after USDC in lock.
     pub async fn list_open(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
-        forge_db::sqlx::query_as::<_, Deal>(
-            r#"
-            SELECT *
-            FROM deals
-            WHERE del_is_enable
-              AND del_status IN ('funded', 'awaiting_proof')
-            ORDER BY del_id DESC
-            LIMIT 100
-            "#,
-        )
-        .fetch_all(pool)
-        .await
+        forge_db::sqlx::query_as::<_, Deal>(include_str!("../../sqls/deals_list_open.sql"))
+            .fetch_all(pool)
+            .await
     }
 
     /// Public search: lots in market + active deals + settled.
     pub async fn list_board(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
-        forge_db::sqlx::query_as::<_, Deal>(
-            r#"
-            SELECT *
-            FROM deals
-            WHERE del_is_enable
-              AND del_status IN (
-                'listed', 'requested', 'accepted', 'preparing', 'prepared',
-                'funded', 'awaiting_proof', 'released', 'refunded', 'dispute'
-              )
-            ORDER BY del_id DESC
-            LIMIT 100
-            "#,
-        )
-        .fetch_all(pool)
-        .await
+        forge_db::sqlx::query_as::<_, Deal>(include_str!("../../sqls/deals_list_board.sql"))
+            .fetch_all(pool)
+            .await
     }
 
     pub async fn list_for_user(pool: &PgPool, usr_id: i64) -> forge_db::sqlx::Result<Vec<Self>> {
-        forge_db::sqlx::query_as::<_, Deal>(
-            r#"
-            SELECT *
-            FROM deals
-            WHERE del_is_enable
-              AND (seller_usr_id = $1 OR buyer_usr_id = $1)
-            ORDER BY del_id DESC
-            LIMIT 100
-            "#,
-        )
-        .bind(usr_id)
-        .fetch_all(pool)
-        .await
+        forge_db::sqlx::query_as::<_, Deal>(include_str!("../../sqls/deals_list_for_user.sql"))
+            .bind(usr_id)
+            .fetch_all(pool)
+            .await
     }
 
     pub async fn list_listed(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {

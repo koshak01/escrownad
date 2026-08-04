@@ -31,7 +31,7 @@ pub const APP_NAME: &str = "escrownad";
 /// Внутренние IPC-сокеты между бинарями (database/notifier/ws/web).
 /// Имя через `.` — конвенция forge для внутреннего IPC.
 /// Внешние listener'ы (nginx → бинарь) идут через `_`:
-/// `/tmp/forge_ws.sock`, `/tmp/forge_web.sock` — настраиваются в etc/ws.toml
+/// `/tmp/escrownad_ws.sock`, `/tmp/escrownad_web.sock` — настраиваются в etc/ws.toml
 /// и etc/web.toml, не здесь.
 pub mod sockets {
     pub const DATABASE: &str = "/tmp/escrownad.database.sock";

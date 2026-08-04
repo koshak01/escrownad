@@ -2,7 +2,7 @@
 //!
 //! Системные команды (Ping/GetSalt/GetConstants/UpdateConstant/ReloadConstant)
 //! обрабатываются ядерным макросом `forge_db::system_commands!`. Admin-CRUD —
-//! делегируется в `forge_admin::ipc::dispatch`. Доменных команд в skeleton нет;
+//! делегируется в `forge_admin::ipc::dispatch`. Доменных команд в escrownad нет;
 //! проекты добавляют свои варианты `DbCommand` и обрабатывают их здесь.
 
 use std::sync::Arc;

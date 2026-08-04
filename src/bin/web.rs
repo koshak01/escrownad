@@ -14,9 +14,7 @@ async fn run() -> Result<()> {
     info!("starting");
     let cfg: WebConfig = forge_core::config::load_toml("etc/web.toml").context("load etc/web.toml")?;
 
-    // `../static` — ядерная forge/static (skeleton живёт ВНУТРИ forge-репы,
-    // потому путь относительно cwd = forge/skeleton — `../static`).
-    // Реальные проекты лежат рядом с forge → у них `../forge/static`.
+        // Project static/ + shared forge static (../forge/static).
     let state = WebState::spawn(sockets::WS);
     let app = build_router(state, "static", "../forge/static");
 

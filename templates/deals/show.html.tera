@@ -8,7 +8,10 @@
     <p class="muted"><a href="/deals/">← search</a> · <a href="/cabinet/">cabinet</a></p>
     <h1>{{ deal.del_title | default(value="Deal") }}</h1>
     <p class="lead">{{ deal.del_note | default(value="") }}</p>
-    <p><code>{{ deal.del_status }}</code> · {{ deal.asset_type }} · USDC · {{ deal.chain_id }}</p>
+    <p>
+      Stage: <strong>{{ deal.del_status }}</strong>
+      · {{ deal.asset_type }} · USDC · {{ deal.chain_id }}
+    </p>
   </section>
 
   <section>
@@ -26,83 +29,80 @@
     </dl>
 
     <h2>Actions</h2>
-    <p class="muted">Flow: soft_verify → list → request → accept → prepare → prepared → fund (USDC mock) → observer proof → released</p>
 
-    <div class="ds-actions">
-      {% if deal.del_status == "draft" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="soft_verify">
-        {{ <button label="Soft verify (email stub)" type="submit" handler="deals_action" variant="primary" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "draft" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="soft_verify" /> }}
+      {{ <button label="Soft verify (email stub)" type="submit" handler="deals_action" variant="primary" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status == "draft" or deal.del_status == "verified" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="list">
-        {{ <button label="Sell — list in search" type="submit" handler="deals_action" variant="primary" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "draft" or deal.del_status == "verified" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="list" /> }}
+      {{ <button label="Sell — list in search" type="submit" handler="deals_action" variant="primary" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status == "listed" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="request">
-        {{ <field name="buyer_wallet" type="text" label="Buyer wallet" placeholder="0x…" /> }}
-        {{ <button label="I want this" type="submit" handler="deals_action" variant="primary" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "listed" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="request" /> }}
+      {{ <field name="buyer_wallet" type="text" label="Buyer wallet" placeholder="0x…" /> }}
+      {{ <button label="I want this" type="submit" handler="deals_action" variant="primary" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status == "requested" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="accept">
-        {{ <button label="Accept buyer" type="submit" handler="deals_action" variant="primary" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "requested" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="accept" /> }}
+      {{ <button label="Accept buyer" type="submit" handler="deals_action" variant="primary" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status == "accepted" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="start_prepare">
-        {{ <button label="Start prepare" type="submit" handler="deals_action" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "accepted" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="start_prepare" /> }}
+      {{ <button label="Start prepare" type="submit" handler="deals_action" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status == "preparing" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="mark_prepared">
-        {{ <button label="Prepared — ready for USDC" type="submit" handler="deals_action" variant="primary" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "preparing" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="mark_prepared" /> }}
+      {{ <button label="Prepared — ready for USDC" type="submit" handler="deals_action" variant="primary" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status == "prepared" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="fund">
-        {{ <button label="Fund USDC (mock lock)" type="submit" handler="deals_action" variant="primary" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "prepared" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="fund" /> }}
+      {{ <button label="Fund USDC (mock lock)" type="submit" handler="deals_action" variant="primary" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status == "awaiting_proof" or deal.del_status == "funded" %}
-      <p class="muted">Waiting RIPE proof. Run: <code>OBSERVER_ONCE=1 cargo run --bin escrownad-observer</code></p>
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="open_dispute">
-        {{ <button label="Open dispute (grey)" type="submit" handler="deals_action" /> }}
-      </form>
-      {% endif %}
+    {% if deal.del_status == "awaiting_proof" or deal.del_status == "funded" %}
+    <p class="muted">Waiting for RIPE proof (observer). USDC stays locked until fact match.</p>
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="open_dispute" /> }}
+      {{ <button label="Open dispute" type="submit" handler="deals_action" /> }}
+    </form>
+    {% endif %}
 
-      {% if deal.del_status != "released" and deal.del_status != "refunded" and deal.del_status != "cancelled" %}
-      <form class="ds-form inline">
-        <input type="hidden" name="id" value="{{ deal.del_id }}">
-        <input type="hidden" name="action" value="cancel">
-        {{ <button label="Cancel / refund" type="submit" handler="deals_action" /> }}
-      </form>
-      {% endif %}
-    </div>
+    {% if deal.del_status != "released" and deal.del_status != "refunded" and deal.del_status != "cancelled" %}
+    <form class="ds-dialog__form">
+      {{ <hidden name="id" value={deal.del_id | str} data_type="integer" /> }}
+      {{ <hidden name="action" value="cancel" /> }}
+      {{ <button label="Cancel / refund" type="submit" handler="deals_action" /> }}
+    </form>
+    {% endif %}
 
     <p class="muted"><a href="/oracle/">What is the oracle?</a></p>
   </section>
