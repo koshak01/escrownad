@@ -2,8 +2,9 @@
 pragma solidity ^0.8.24;
 
 /// @title EscrowNad proof-escrow lock (Monad)
-/// @notice Buyer deposits; only `observer` can release to seller or refund buyer.
-/// @dev Deploy on Monad testnet. Observer key is the Rust service EOA (v1 single key).
+/// @notice Buyer deposits native MON (`payable`); only `observer` can release/refund.
+/// @dev v1 settlement asset = native MON. USDC/ERC-20 = later path.
+///      Deploy on Monad testnet. Observer = Rust service EOA (single key).
 contract EscrowLock {
     address public owner;
     address public observer;

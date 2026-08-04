@@ -87,7 +87,8 @@ OBSERVER_ONCE=1 ./target/debug/escrownad-observer
 ## Product flow
 
 1. Seller lists IP block (PA|PI) + from/to condition  
-2. Buyer funds on-chain lock (Monad; mock txs until deploy)  
+2. Buyer funds on-chain lock with **native MON** (`payable`; mock until deploy). USDC later.  
+
 3. `escrownad-observer` polls RIPE PA + PI JSON  
 4. Match → release seller; timeout → refund  
 
