@@ -24,13 +24,18 @@
   </ol>
 
   <section class="card">
-    <h2>Details</h2>
     <dl class="ds-dl">
-      <dt>Resource</dt><dd><code>{{ deal.resource_kind }}</code> · <code>{{ deal.prefix }}</code></dd>
-      <dt>From → To</dt><dd>{{ deal.from_org | default(value="?") }} → {{ deal.to_org | default(value="?") }}</dd>
-      <dt>Verified</dt><dd>{{ deal.soft_verified }}</dd>
-      <dt>Seller wallet</dt><dd><code>{{ deal.seller_wallet | default(value="—") }}</code></dd>
-      <dt>Buyer wallet</dt><dd><code>{{ deal.buyer_wallet | default(value="—") }}</code></dd>
+      <dt>#</dt><dd class="num">{{ deal.del_id }}</dd>
+      <dt>Offer type</dt><dd><code>{{ deal.asset_type }}</code></dd>
+      <dt>Resource</dt><dd><code>{{ deal.prefix }}</code>{% if deal.resource_kind %} · <code>{{ deal.resource_kind }}</code>{% endif %}</dd>
+      <dt>From → To</dt><dd>{{ deal.from_org | default(value="—") }} → {{ deal.to_org | default(value="—") }}</dd>
+      <dt>Listed</dt><dd>{{ listed_for }}</dd>
+      <dt>Seller</dt>
+      <dd>
+        <code>{{ deal.seller_wallet | default(value="—") }}</code>
+        {% if seller_verified %}<span class="badge-ok">✓</span>{% endif %}
+      </dd>
+      <dt>Buyer</dt><dd><code>{{ deal.buyer_wallet | default(value="—") }}</code></dd>
       <dt>Lock tx</dt><dd><code>{{ deal.lock_tx | default(value="—") }}</code></dd>
       <dt>Release tx</dt><dd><code>{{ deal.release_tx | default(value="—") }}</code></dd>
     </dl>

@@ -36,7 +36,7 @@ pub struct Deal {
     pub del_title: Option<String>,
     pub del_note: Option<String>,
 
-    /// ip | domain | work (v1 = ip)
+    /// Offer type: ip | domain | property | work | other (drives type-specific fields later).
     pub asset_type: String,
     /// PA | PI (when asset_type = ip)
     pub resource_kind: String,
@@ -64,6 +64,10 @@ pub struct Deal {
     pub contact_email: Option<String>,
 
     pub del_is_enable: bool,
+
+    /// Created at (DB default). Used for “listed for” age on the market board.
+    #[db(skip_insert)]
+    pub del_dat: Timestamp,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ListFilter)]

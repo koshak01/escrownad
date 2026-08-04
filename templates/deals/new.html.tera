@@ -14,14 +14,14 @@
   {% else %}
   <section class="app-form">
     <form class="ds-dialog__form">
-      {{ <field name="asset_type" type="text" label="Asset" placeholder="ip | domain | property | work | other" required={true} /> }}
+      {{ <field name="asset_type" type="text" label="Offer type" placeholder="ip | domain | property | work | other" required={true} /> }}
       {{ <field name="del_title" type="text" label="Title" placeholder="Short title" required={true} /> }}
-      {{ <field name="prefix" type="text" label="Resource id" placeholder="prefix / domain / address / ticket" required={true} /> }}
-      {{ <field name="resource_kind" type="text" label="Kind (optional)" placeholder="PA | PI | n/a" /> }}
+      {{ <field name="prefix" type="text" label="Resource" placeholder="depends on type: prefix, domain, address…" required={true} /> }}
+      {{ <field name="resource_kind" type="text" label="Subtype" placeholder="PA | PI | n/a" /> }}
       {{ <field name="from_org" type="text" label="From" /> }}
       {{ <field name="to_org" type="text" label="To" /> }}
       {{ <field name="del_amount" type="text" label="Price USDC" placeholder="1500" required={true} /> }}
-      {{ <field name="del_note" type="textarea" label="Terms / notes" /> }}
+      {{ <field name="del_note" type="textarea" label="Terms" /> }}
       {{ <hidden name="publish" value="true" /> }}
       <div class="app-form__actions">
         {{ <button label="Publish" type="submit" variant="primary" handler="deals_save" /> }}

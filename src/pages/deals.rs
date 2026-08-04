@@ -1,17 +1,24 @@
-//! Deals market board — auction-style table (lot #, asset, price, seller ✓).
+//! Market board — auction table: lot #, offer type, price, listed age, seller ✓.
 
 use async_trait::async_trait;
+use forge_core::Timestamp;
 use forge_ws::{Page, RequestContext, WsError, WsResult};
 use serde::Serialize;
 
 use crate::app_context;
 use crate::models::Deal;
 
+/// Known offer types (more fields per type later via checklist_json / forms).
+pub const OFFER_TYPES: &[&str] = &["ip", "domain", "property", "work", "other"];
+
 #[derive(Debug, Serialize)]
 struct OfferRow {
     del_id: i64,
-    asset_type: String,
+    /// Offer type: ip | domain | property | work | other
+    offer_type: String,
     total_price: String,
+    /// Human age since created/listed, e.g. "12m", "3h", "2d"
+    listed_for: String,
     seller_verified: bool,
     del_status: String,
 }
@@ -38,6 +45,21 @@ fn format_usdc(raw: i64) -> String {
     }
 }
 
+fn listed_for(from: Timestamp) -> String {
+    let now = Timestamp::now().raw();
+    let then = from.raw();
+    let secs = (now - then).max(0);
+    if secs < 60 {
+        format!("{secs}s")
+    } else if secs < 3600 {
+        format!("{}m", secs / 60)
+    } else if secs < 86400 {
+        format!("{}h", secs / 3600)
+    } else {
+        format!("{}d", secs / 86400)
+    }
+}
+
 fn to_offer_row(d: &Deal, verified_sellers: &[i64]) -> OfferRow {
     let seller_verified = d
         .seller_usr_id
@@ -45,8 +67,9 @@ fn to_offer_row(d: &Deal, verified_sellers: &[i64]) -> OfferRow {
         .unwrap_or(false);
     OfferRow {
         del_id: d.del_id,
-        asset_type: d.asset_type.clone(),
+        offer_type: d.asset_type.clone(),
         total_price: format_usdc(d.del_amount.raw()),
+        listed_for: listed_for(d.del_dat),
         seller_verified,
         del_status: d.del_status.clone(),
     }
@@ -98,6 +121,7 @@ impl Page for DealNewPage {
     }
     async fn load(&self, ctx: &mut RequestContext) -> WsResult<()> {
         ctx.insert("user", &ctx.user.is_some());
+        ctx.insert("offer_types", &OFFER_TYPES);
         Ok(())
     }
 }
@@ -124,8 +148,21 @@ impl Page for DealShowPage {
             .await
             .map_err(|e| WsError::PageLoad(format!("get_deal: {e}")))?
             .ok_or_else(|| WsError::NotFound("deal not found".into()))?;
+
+        let verified_sellers = app_context()
+            .db
+            .list_verified_sellers()
+            .await
+            .unwrap_or_default();
+        let seller_verified = deal
+            .seller_usr_id
+            .map(|id| verified_sellers.contains(&id))
+            .unwrap_or(false);
+
         ctx.insert("deal", &deal);
         ctx.insert("usr_id", &ctx.user.as_ref().map(|u| u.usr_id));
+        ctx.insert("seller_verified", &seller_verified);
+        ctx.insert("listed_for", &listed_for(deal.del_dat));
         Ok(())
     }
 }
