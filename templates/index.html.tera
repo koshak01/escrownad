@@ -25,7 +25,7 @@
   <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg?v={{ salt }}">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
-  <link rel="icon" href="/static/images/favicon.ico?v={{ salt }}" sizes="any">
+  <link rel="icon" href="/static/images/favicon-app.ico?v={{ salt }}" sizes="any">
   <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
   {# Mulish — шрифт коллектива. Standalone-лендинг грузит сам (не через _base_core). #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
