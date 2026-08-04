@@ -76,14 +76,13 @@ impl WalletChallenges {
     pub async fn issue(&self, session_id: &str, address: &str) -> Result<String, String> {
         let address = normalize_address(address)?;
         let nonce = new_nonce()?;
+        // Keep message simple (UTF-8). Client hex-encodes for Phantom personal_sign.
         let message = format!(
-            "EscrowNad wants you to sign in with your Ethereum account:\n\
-             {address}\n\n\
-             This proves you control this wallet. It does not move funds,\n\
-             approve any token, or open a transaction.\n\n\
-             Network: Monad\n\
-             Nonce: {nonce}\n\
-             Valid for: 5 minutes"
+            "EscrowNad sign-in\n\
+Address: {address}\n\
+Network: Monad\n\
+Nonce: {nonce}\n\
+This proves you own this wallet. No funds will be transferred."
         );
 
         let mut map = self.pending.lock().await;

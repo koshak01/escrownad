@@ -96,6 +96,9 @@
     if (/resource not available|not available|disconnected/i.test(text)) {
       return "Wallet not available — install Phantom or MetaMask and enable EVM";
     }
+    if (/invalid formatting|cannot be shown/i.test(text)) {
+      return "Wallet rejected the sign payload — try again or use MetaMask";
+    }
     if (/User rejected|user closed/i.test(text)) {
       return "Connection cancelled";
     }
@@ -108,11 +111,36 @@
     return accounts[0];
   }
 
+  /** Phantom EVM requires hex UTF-8 for personal_sign (plain string → invalid formatting). */
+  function utf8ToHex(str) {
+    const bytes = new TextEncoder().encode(str);
+    let hex = "0x";
+    for (let i = 0; i < bytes.length; i++) {
+      hex += bytes[i].toString(16).padStart(2, "0");
+    }
+    return hex;
+  }
+
   async function personalSign(provider, message, address) {
-    return provider.request({
-      method: "personal_sign",
-      params: [message, address],
-    });
+    // EIP-1193 / Phantom docs: hex-encoded UTF-8 string, then address.
+    // Wallet displays decoded text; server ecrecover uses the same UTF-8 bytes.
+    const msgHex = utf8ToHex(message);
+    try {
+      return await provider.request({
+        method: "personal_sign",
+        params: [msgHex, address],
+      });
+    } catch (e1) {
+      // Some injectors still accept raw UTF-8 (MetaMask)
+      const msg = (e1 && e1.message) || String(e1);
+      if (/invalid formatting|invalid params|must provide/i.test(msg)) {
+        return provider.request({
+          method: "personal_sign",
+          params: [message, address],
+        });
+      }
+      throw e1;
+    }
   }
 
   async function waitWs(timeoutMs) {
