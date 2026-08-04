@@ -627,6 +627,7 @@ dependencies = [
  "forge-session",
  "forge-web",
  "forge-ws",
+ "reqwest",
  "serde",
  "serde_json",
  "sqlx",

@@ -14,6 +14,7 @@
 //! поверх этого минимума.
 
 pub mod models;
+pub mod observer;
 pub mod pages;
 pub mod ws_handlers;
 

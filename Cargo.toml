@@ -24,6 +24,11 @@ path = "src/bin/ws.rs"
 name = "escrownad-web"
 path = "src/bin/web.rs"
 
+# Observer: polls RIPE PA+PI, matches deals, mock/real release.
+[[bin]]
+name = "escrownad-observer"
+path = "src/bin/observer.rs"
+
 [dependencies]
 # forge — общая платформа. лежит side-by-side: ../forge/
 forge-admin    = { path = "../forge/crates/forge-admin" }
@@ -48,6 +53,7 @@ chrono      = { version = "0.4", features = ["serde"] }
 anyhow      = "1"
 tracing     = "0.1"
 async-trait = "0.1"
+reqwest     = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
 [profile.release]
 opt-level = 3

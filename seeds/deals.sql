@@ -76,3 +76,23 @@ SELECT r.rol_id, m.mnu_id, true
 FROM roles r CROSS JOIN menus m
 WHERE r.rol_code = 'admin' AND m.mnu_uri = '/deals/'
 ON CONFLICT (rol_id, mnu_id) DO NOTHING;
+
+-- Observer smoke: real historical PI row (Fiber Telecom)
+INSERT INTO deals (
+    del_hash, del_title, del_note, resource_kind, prefix,
+    from_org, to_org, seller_wallet, del_amount, del_status, deadline_ts
+)
+VALUES (
+    encode(digest('obs-test-91.224.58.0/23', 'sha256'), 'hex'),
+    'Observer smoke PI 91.224.58.0/23',
+    'Historical RIPE PI for matcher smoke',
+    'PI',
+    '91.224.58.0/23',
+    'Fiber Telecom',
+    'Fiber Telecom',
+    '0xObserverSmoke',
+    100000000,
+    'awaiting_proof',
+    now() + interval '30 days'
+)
+ON CONFLICT (del_hash) DO NOTHING;
