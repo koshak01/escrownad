@@ -1,0 +1,33 @@
+{# ЭТАЛОН формы new/edit доменной сущности. Копия паттерна ядерного
+   templates/admin/constants/edit.html.tera. Page::load() кладёт `demo`
+   (dmo_id=0 для new). Имена полей = имена в модели/params/SQL (сквозная
+   структура, 03_handlers.md). #}
+{% extends "_base.html.tera" %}
+
+{% block title %}Demo · {{ constants.site_title | default(value="forge") }}{% endblock %}
+
+{% block content %}
+{% <admin_detail title="Demo" back_url="/admin/demos/"> %}
+  <form class="ds-dialog__form admin-form">
+    {{ <hidden name="id" value={demo.dmo_id | str} data_type="integer" /> }}
+
+    <div class="admin-form__row">
+      {{ <field name="dmo_code" label="Код" placeholder="alpha / beta / ..."
+                value={demo.dmo_code | default(value="", boolean=true)} /> }}
+
+      {{ <bool_toggle name="dmo_is_enable" label="Активно" width="narrow"
+                 checked={demo.dmo_is_enable} /> }}
+    </div>
+
+    {{ <field name="dmo_title" label="Заголовок"
+              placeholder="человекочитаемый заголовок"
+              value={demo.dmo_title | default(value="", boolean=true)} /> }}
+
+    {{ <field name="dmo_note" label="Заметка" width="wide"
+              placeholder="произвольный текст"
+              value={demo.dmo_note | default(value="", boolean=true)} /> }}
+
+    {{ <form_actions handler="demos_save" cancel_url="/admin/demos/" /> }}
+  </form>
+{% </admin_detail> %}
+{% endblock %}

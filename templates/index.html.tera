@@ -1,0 +1,28 @@
+{% extends "_base.html.tera" %}
+
+{% block title %}{{ constants.site_title | default(value="EscrowNad") }}{% endblock %}
+
+{% block content %}
+<main class="home">
+  <section class="home__hero">
+    <h1>{{ constants.site_title | default(value="EscrowNad") }}</h1>
+    <p class="lead">Proof-escrow on Monad — settle on external proof. First asset: IPv4 (RIPE).</p>
+  </section>
+
+  <section class="home__demo">
+    <p class="muted">
+      Каркас forge. Вход в админку: <a href="/admin/">/admin/</a>
+      (dev login — в README, пароль в <code>pass.txt</code> у оператора).
+    </p>
+
+    <form class="ds-form">
+      {{ <field name="text" type="text" label="Текст" placeholder="WS echo smoke" required={true} /> }}
+      {{ <button label="Echo" type="submit" handler="echo" variant="primary" /> }}
+    </form>
+
+    <div id="echo-result" class="echo-result">
+      <p class="muted">Результат появится здесь.</p>
+    </div>
+  </section>
+</main>
+{% endblock %}

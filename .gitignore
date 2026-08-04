@@ -1,7 +1,6 @@
 # Rust
 /target/
 **/*.rs.bk
-Cargo.lock
 
 # Node (if any later)
 node_modules/
@@ -13,6 +12,10 @@ node_modules/
 config.toml
 **/etc/local.toml
 **/etc/*secret*
+pass.txt
+synapse.toml
+synapse-bridge.log
+.mcp.json
 
 # OS / editor
 .DS_Store
@@ -20,3 +23,5 @@ config.toml
 *.swo
 .idea/
 .vscode/
+
+deploy/nginx/ssl/

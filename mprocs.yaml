@@ -1,0 +1,12 @@
+# escrownad — локальный dev-запуск всех сервисов через mprocs.
+# Порты: web :4100, ws :4101.
+#
+# Перед первым запуском:   cargo build
+# Запуск (из корня репо):  mprocs
+#
+# БД — escrownad.com через tunnel 127.0.0.1:5432 (см. etc/database.toml).
+procs:
+  database: { shell: "cargo run --bin escrownad-database" }
+  notifier: { shell: "cargo run --bin escrownad-notifier" }
+  ws:       { shell: "cargo run --bin escrownad-ws" }
+  web:      { shell: "cargo run --bin escrownad-web" }

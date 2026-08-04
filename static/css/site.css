@@ -1,0 +1,47 @@
+/* forge-skeleton — проектная вёрстка.
+   Минимальный нейтральный дефолт. Формы / кнопки / поля — через ядерные
+   ds-components (`forge/templates/_components/`), их стили живут в
+   `forge/static/css/`. Здесь только page-level layout. */
+
+html, body { margin: 0; }
+body { padding-left: 4px; padding-right: 4px; }
+
+/* admin-table actions: прижать к правому краю td. */
+.admin-table td.admin-table__actions { text-align: right; }
+
+/* — home (главная skeleton'а) — */
+.home {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px var(--gutter);
+}
+.home__hero h1 {
+  font-size: 2rem;
+  margin: 0 0 12px;
+}
+.home__hero .lead {
+  color: var(--muted);
+  margin: 0 0 32px;
+}
+.home__demo {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.home__demo p {
+  margin: 0 0 20px;
+}
+
+/* — echo demo result — */
+.echo-result {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+.echo-result__text {
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+.muted { color: var(--muted); }

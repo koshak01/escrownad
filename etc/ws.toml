@@ -1,0 +1,18 @@
+# escrownad-ws — server-side renderer + WS gateway.
+# В Postgres не лезет — всё через IPC к escrownad-database.
+
+[ws]
+# Сколько ждать готовности escrownad-database при старте (мс).
+db_wait_ms = 10000
+
+# Окружение: local | staging | production.
+env = "local"
+
+# WebSocket-URL для браузера. Локально — TCP, prod — wss через nginx.
+# Trailing slash обязателен.
+ws_url = "ws://localhost:4101/ws/"
+
+# Режим WS-gateway: "tcp" | "unix" — РОВНО один.
+mode        = "tcp"
+socket_path = "/tmp/escrownad_ws.sock"
+ws_port     = 4101

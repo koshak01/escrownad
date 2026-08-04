@@ -1,0 +1,10 @@
+# escrownad-web — production (foothold.me, supervisor + nginx).
+# Hyperion при deploy симлинкует это в `<escrownad-dir>/etc/web.toml`:
+#
+#   ln -sf deploy/etc/web.toml etc/web.toml
+
+[server]
+# Production: nginx → unix-сокет. TCP-порт не используется.
+mode        = "unix"
+socket_path = "/tmp/escrownad_web.sock"
+http_port   = 3000

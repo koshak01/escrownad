@@ -1,0 +1,5 @@
+# Redis для сессий. Подключение через unix-socket — стандарт forge:
+# на всех машинах (dev и prod) Redis настроен на этот путь.
+
+[redis]
+socket_path = "/var/run/redis/redis.sock"
