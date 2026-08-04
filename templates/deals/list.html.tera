@@ -3,39 +3,60 @@
 {% block title %}Offers · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="app-page">
-  <div class="app-page__head">
+<main class="app-main">
+  <div class="app-main__bar">
     <div>
-      <h1>Offers</h1>
-      <p class="lead muted">IPv4 proof-escrow market. Settlement: <strong>USDC</strong> on Monad.</p>
+      <h1 class="app-main__title">Offers</h1>
+      <p class="app-main__sub muted">Proof-escrow market · USDC on Monad</p>
     </div>
-    <a class="ds-btn ds-btn--primary" href="/deals/new/">Add offer</a>
+    <a class="app-top__cta" href="/deals/new/">Add offer</a>
   </div>
 
   {% if not user %}
-  <p class="banner-connect muted">
-    Connect a wallet (top right) to publish offers or buy.
-  </p>
+  <p class="app-hint muted">Connect wallet (top right) to publish or buy.</p>
   {% endif %}
 
-  {% if deals | length == 0 %}
-    <p class="muted">No offers yet. <a href="/deals/new/">Add the first offer</a>.</p>
-  {% else %}
-    <div class="offer-grid">
-      {% for d in deals %}
-      <a class="offer-card" href="/deals/{{ d.del_id }}/">
-        <div class="offer-card__top">
-          <span class="status status--{{ d.del_status }}">{{ d.del_status }}</span>
-          <code>{{ d.resource_kind }}</code>
-        </div>
-        <h2 class="offer-card__title">{{ d.del_title | default(value="Untitled offer") }}</h2>
-        <p class="offer-card__prefix"><code>{{ d.prefix }}</code></p>
-        <p class="offer-card__meta muted">
-          {{ d.asset_type }} · USDC · {{ d.chain_id }}
-        </p>
-      </a>
-      {% endfor %}
-    </div>
-  {% endif %}
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Size</th>
+          <th>IPs</th>
+          <th>RIPE</th>
+          <th>Price / IP</th>
+          <th>Total</th>
+          <th>Seller</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if deals | length == 0 %}
+        <tr>
+          <td colspan="8" class="data-table__empty">No offers yet. <a href="/deals/new/">Add the first offer</a>.</td>
+        </tr>
+        {% else %}
+        {% for d in deals %}
+        <tr class="data-table__row" onclick="location.href='/deals/{{ d.del_id }}/'">
+          <td><code>{{ d.asset_type }}</code></td>
+          <td><code>{{ d.size_label }}</code></td>
+          <td class="num">{{ d.ip_count }}</td>
+          <td><code>{{ d.resource_kind }}</code></td>
+          <td class="num">{{ d.price_per_ip }}</td>
+          <td class="num"><strong>{{ d.total_price }}</strong></td>
+          <td>
+            {% if d.seller_verified %}
+              <span class="badge-ok" title="Seller completed deals before">✓ verified</span>
+            {% else %}
+              <span class="muted">new</span>
+            {% endif %}
+          </td>
+          <td><span class="status status--{{ d.del_status }}">{{ d.del_status }}</span></td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
 </main>
 {% endblock %}

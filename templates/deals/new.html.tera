@@ -3,35 +3,34 @@
 {% block title %}Add offer · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="app-page">
+<main class="app-main">
   <p class="muted"><a href="/deals/">← Offers</a></p>
-  <h1>Add offer</h1>
-  <p class="lead muted">v1 asset = IPv4 (RIPE PA/PI). Settlement USDC. Verification runs after you publish.</p>
+  <h1 class="app-main__title">Add offer</h1>
+  <p class="app-main__sub muted">Publish a resource. Settlement in USDC. Soft verification on publish.</p>
 
   {% if not user %}
-  <p class="banner-connect">
-    <button type="button" class="ds-btn ds-btn--primary" data-wallet-connect data-redirect-after="/deals/new/">
+  <p class="app-hint">
+    <button type="button" class="app-top__cta app-top__cta--solid"
+            data-wallet-connect data-redirect-after="/deals/new/">
       Connect wallet
     </button>
     to create an offer.
   </p>
   {% else %}
-  <section class="offer-form card">
+  <section class="app-form">
     <form class="ds-dialog__form">
-      {{ <field name="del_title" type="text" label="Title" placeholder="IPv4 /24 PI transfer" required={true} /> }}
-      {{ <field name="resource_kind" type="text" label="RIPE kind (PA or PI)" placeholder="PI" required={true} /> }}
-      {{ <field name="prefix" type="text" label="Prefix / block" placeholder="176.120.88.0/21" required={true} /> }}
-      {{ <field name="from_org" type="text" label="From organization" /> }}
-      {{ <field name="to_org" type="text" label="To organization (buyer)" /> }}
-      {{ <field name="seller_wallet" type="text" label="Seller wallet (auto-filled if empty)" placeholder="0x…" /> }}
-      {{ <field name="contact_email" type="text" label="Contact email (soft verify)" /> }}
+      {{ <field name="asset_type" type="text" label="Asset type" placeholder="ip | domain | other" required={true} /> }}
+      {{ <field name="del_title" type="text" label="Title" placeholder="Short label for the market" required={true} /> }}
+      {{ <field name="resource_kind" type="text" label="Registry kind (PA / PI for IP, or n/a)" placeholder="PI" /> }}
+      {{ <field name="prefix" type="text" label="Resource (prefix, domain, id)" placeholder="176.120.88.0/21" required={true} /> }}
+      {{ <field name="from_org" type="text" label="From (holder / org)" /> }}
+      {{ <field name="to_org" type="text" label="To (buyer org, optional)" /> }}
+      {{ <field name="del_amount" type="text" label="Total price USDC (whole units, e.g. 1500)" placeholder="1500" required={true} /> }}
       {{ <field name="del_note" type="textarea" label="Notes" /> }}
-      {{ <field name="del_amount" type="text" label="Amount (raw ×1e8 USDC units)" placeholder="1000000000" /> }}
-      {{ <hidden name="asset_type" value="ip" /> }}
       {{ <hidden name="publish" value="true" /> }}
-      <div class="ds-dialog__actions">
+      <div class="app-form__actions">
         {{ <button label="Publish offer" type="submit" variant="primary" handler="deals_save" /> }}
-        <a class="ds-btn" href="/deals/">Cancel</a>
+        <a class="app-top__btn" href="/deals/">Cancel</a>
       </div>
     </form>
   </section>

@@ -3,13 +3,13 @@
 {% block title %}My deals · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="app-page">
-  <div class="app-page__head">
+<main class="app-main">
+  <div class="app-main__bar">
     <div>
-      <h1>My deals</h1>
-      <p class="lead muted">Offers and buys linked to your wallet.</p>
+      <h1 class="app-main__title">My deals</h1>
+      <p class="app-main__sub muted">Offers and buys linked to your wallet.</p>
     </div>
-    <a class="ds-btn ds-btn--primary" href="/deals/new/">Add offer</a>
+    <a class="app-top__cta" href="/deals/new/">Add offer</a>
   </div>
 
   {% if not logged_in %}

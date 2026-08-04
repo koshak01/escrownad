@@ -229,6 +229,18 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 .map_err(|e| e.to_string())?;
                 Ok(DbResponse::WalletAddress(row.map(|r| r.0)))
             }
+
+            DbCommand::ListVerifiedSellers => {
+                let rows: Vec<(i64,)> = forge_db::sqlx::query_as(include_str!(
+                    "../../sqls/sellers_verified.sql"
+                ))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                Ok(DbResponse::VerifiedSellers(
+                    rows.into_iter().map(|r| r.0).collect(),
+                ))
+            }
         }
     }
 }

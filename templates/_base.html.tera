@@ -9,38 +9,56 @@
 <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
 {% endblock %}
 
-{# Fintech-style header: Offers nav + Connect wallet top-right (wallet-only auth). #}
-{% block header_nav %}
-<nav class="nav nav--site en-nav">
-  <div class="nav-item">
-    <a class="nav-link" href="/deals/">Offers</a>
-  </div>
-  <div class="nav-item">
-    <a class="nav-link" href="/deals/new/">Add offer</a>
-  </div>
-  <div class="nav-item">
-    <a class="nav-link" href="/oracle/">Oracle</a>
-  </div>
-</nav>
-{% endblock header_nav %}
+{% block body_class %}app-shell{% endblock %}
 
-{% block header_actions %}
-<div class="header-actions wallet-header">
-  {% if user %}
-    <span class="wallet-chip" data-wallet-address title="Connected">connected</span>
-    <button type="button" class="ds-btn ds-btn--ghost wallet-header__btn" data-wallet-logout>
-      Disconnect
+{# Full fintech header: logo | Offers | About | Add offer | wallet #}
+{% block header %}
+<header class="app-top">
+  <a class="app-top__logo" href="/deals/">
+    <img src="/static/images/mark.png?v={{ salt }}" alt="" width="28" height="28">
+    <span>EscrowNad</span>
+  </a>
+  <nav class="app-top__nav">
+    <a class="app-top__link" href="/deals/">Offers</a>
+    <a class="app-top__link" href="/about/">About</a>
+    <a class="app-top__link" href="/oracle/">How it works</a>
+  </nav>
+  <div class="app-top__right">
+    <a class="app-top__cta" href="/deals/new/">Add offer</a>
+    {% if user %}
+      <span class="app-top__chip" data-wallet-address title="Connected wallet">wallet</span>
+      <button type="button" class="app-top__btn" data-wallet-logout>Disconnect</button>
+    {% else %}
+      <button type="button" class="app-top__cta app-top__cta--solid"
+              data-wallet-connect data-redirect-after="/deals/">
+        Connect wallet
+      </button>
+    {% endif %}
+  </div>
+</header>
+{% endblock header %}
+
+{# Minimal product footer — no Claude/Rust/Synapse stack #}
+{% block footer %}
+<footer class="app-foot">
+  <div class="app-foot__left">
+    <span>© {{ now_ts() | date(format="%Y") }} EscrowNad</span>
+    <span class="dim">v {{ salt }}</span>
+    <span class="dim">create at <span data-server-ms>—</span>&nbsp;ms</span>
+  </div>
+  <div class="app-foot__right">
+    <button class="app-foot__btn theme-toggle" type="button" data-theme-toggle aria-label="theme">
+      <span class="when-dark">LIGHT</span>
+      <span class="when-light">DARK</span>
     </button>
-  {% else %}
-    <button type="button"
-            class="ds-btn ds-btn--primary wallet-header__btn"
-            data-wallet-connect
-            data-redirect-after="/deals/">
-      Connect wallet
-    </button>
-  {% endif %}
-</div>
-{% endblock header_actions %}
+    {% if user %}
+      <button class="app-foot__btn" type="button" data-wallet-logout>
+        Logout
+      </button>
+    {% endif %}
+  </div>
+</footer>
+{% endblock footer %}
 
 {% block scripts_extra %}
 <script src="/static/js/wallet.js?v={{ salt }}"></script>

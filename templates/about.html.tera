@@ -1,0 +1,29 @@
+{% extends "_base.html.tera" %}
+
+{% block title %}About · EscrowNad{% endblock %}
+
+{% block content %}
+<main class="app-main app-main--prose">
+  <h1 class="app-main__title">About EscrowNad</h1>
+  <p class="lead">Proof-escrow on <strong>Monad</strong>. Settlement in <strong>USDC</strong> unlocks only when an external fact matches — not when a party “says so”.</p>
+
+  <h2>Who we are</h2>
+  <p>EscrowNad is a market for transferring internet resources (starting with IPv4 RIPE PA/PI) with on-chain settlement gated by public registry data.</p>
+
+  <h2>How it works</h2>
+  <ol>
+    <li><strong>Seller</strong> publishes an offer (resource + total price).</li>
+    <li><strong>Buyer</strong> requests the lot; seller accepts.</li>
+    <li>Buyer deposits USDC into the lock.</li>
+    <li>Seller prepares the registry transfer and marks ready.</li>
+    <li>Both confirm intent; the observer waits for a matching RIPE fact.</li>
+    <li>On match → USDC releases to the seller. On timeout → refund path.</li>
+  </ol>
+
+  <h2>What buyers see</h2>
+  <p>Market table shows size, IP count, RIPE kind, price per IP, total, and whether the seller is verified (prior completed deals). Full network identities stay off the board until you open a deal.</p>
+
+  <p><a class="app-top__cta" href="/deals/">Browse offers</a>
+     <a class="app-top__btn" href="/oracle/">Oracle details</a></p>
+</main>
+{% endblock %}

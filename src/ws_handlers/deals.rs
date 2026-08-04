@@ -120,8 +120,9 @@ pub async fn deals_save(p: DealSaveParams, seller_usr_id: Option<i64>) -> Result
     if let Some(v) = p.contact_email {
         deal.contact_email = Some(v);
     }
-    if let Some(raw) = p.del_amount {
-        deal.del_amount = forge_fixed_n::FixedN::new(raw);
+    if let Some(units) = p.del_amount {
+        // Form: whole USDC units (e.g. 1500) → FixedN<8>
+        deal.del_amount = forge_fixed_n::FixedN::from_int(units);
     }
     deal.seller_usr_id = Some(actor);
 

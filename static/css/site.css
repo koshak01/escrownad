@@ -1,35 +1,320 @@
-/* EscrowNad site extras */
+/* EscrowNad product shell — full-bleed fintech app, ~10px gutters. */
 
+/* ── shell ─────────────────────────────────────────────────────────── */
+body.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+body.app-shell > .brand {
+  /* hide forge default if any leaks */
+  display: none !important;
+}
+
+/* ── top bar ───────────────────────────────────────────────────────── */
+.app-top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  flex-wrap: wrap;
+}
+.app-top__logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--fg);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.app-top__logo img {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.app-top__nav {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+.app-top__link {
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+.app-top__link:hover {
+  color: var(--fg);
+  background: var(--line);
+}
+.app-top__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+.app-top__cta {
+  display: inline-block;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.app-top__cta:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.app-top__cta--solid {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.app-top__cta--solid:hover {
+  opacity: 0.92;
+  background: var(--accent);
+}
+.app-top__btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.app-top__btn:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+.app-top__chip {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── footer ────────────────────────────────────────────────────────── */
+.app-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: auto;
+}
+.app-foot__left,
+.app-foot__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-foot .dim {
+  opacity: 0.75;
+}
+.app-foot__btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.app-foot__btn:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+
+/* hide forge partner foot if it ever leaks */
+body.app-shell .foot:not(.app-foot) {
+  display: none !important;
+}
+
+/* ── main ──────────────────────────────────────────────────────────── */
+.app-main {
+  flex: 1;
+  padding: 10px 10px 16px;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: none;
+}
+.app-main__bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.app-main__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.app-main__sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.app-main--prose {
+  max-width: 720px;
+}
+.app-main--prose h2 {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.4rem;
+}
+.app-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+/* ── data table (RIPE-style market) ────────────────────────────────── */
+.data-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--line) 35%, var(--bg));
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.data-table__row {
+  cursor: pointer;
+}
+.data-table__row:hover td {
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+.data-table .num {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.data-table__empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 28px 10px !important;
+}
+.badge-ok {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1a7a45;
+  background: color-mix(in srgb, #3dff9a 18%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+html.light .badge-ok {
+  color: #0d5c32;
+}
+
+/* ── status pills ──────────────────────────────────────────────────── */
 .status {
   display: inline-block;
-  padding: 0.15em 0.55em;
+  padding: 0.12em 0.5em;
   border-radius: 999px;
-  font-size: 0.85em;
+  font-size: 0.78em;
   font-weight: 600;
   background: var(--line);
   color: var(--fg);
+  text-transform: lowercase;
 }
-.status--listed { background: var(--violet-deep); color: var(--lavender); }
+.status--listed { background: var(--violet-deep, #2a1848); color: var(--lavender, #ddd7fe); }
 .status--funded,
-.status--awaiting_proof { background: #12283a; color: var(--proof); }
+.status--awaiting_proof,
+.status--prepared,
+.status--preparing { background: #12283a; color: var(--proof, #85e6ff); }
 .status--released { background: #143d28; color: #5dff9a; }
 .status--refunded,
 .status--dispute,
 .status--cancelled { background: #3d1a1a; color: #ff8a8a; }
+.status--requested,
+.status--accepted { background: #2a2140; color: #c8b8f0; }
 
+html.light .status--listed { background: #eee8ff; color: #3d2a8a; }
+html.light .status--funded,
+html.light .status--awaiting_proof { background: #e0f4ff; color: #0a5f7a; }
+html.light .status--released { background: #e0f8ea; color: #0d5c32; }
+
+/* ── deal detail / forms ───────────────────────────────────────────── */
+.app-form {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px 10px;
+  max-width: 640px;
+}
+.app-form__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
 .lifecycle {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem;
   list-style: none;
   padding: 0;
-  margin: 0 0 1.5rem;
+  margin: 0 0 12px;
 }
 .lifecycle li {
-  padding: 0.35em 0.75em;
+  padding: 0.25em 0.55em;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 4px;
   color: var(--muted);
+  font-size: 11px;
 }
 .lifecycle li.done {
   border-color: var(--accent);
@@ -39,120 +324,31 @@
   border-color: #ff8a8a;
   color: #ff8a8a;
 }
-
-/* Product app chrome + offers UI (EN). */
-
-.wallet-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-.wallet-header__btn {
-  white-space: nowrap;
-  font-size: 13px !important;
-  letter-spacing: 0.04em;
-  text-transform: none !important;
-}
-.wallet-chip {
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--muted);
-  max-width: 10rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.app-page {
-  max-width: var(--max-w);
-  margin: 0 auto;
-  padding: 1.5rem var(--gutter) 3rem;
-}
-.app-page__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.app-page h1 {
-  font-weight: 300;
-  font-size: clamp(1.6rem, 3vw, 2rem);
-  margin: 0 0 0.35rem;
-}
-.app-page .lead { margin: 0; }
-
-.offer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
-}
-.offer-card {
-  display: block;
-  padding: 1.1rem 1.2rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--bg) 92%, var(--violet, #6e54ff) 8%);
-  text-decoration: none;
-  color: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.offer-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-.offer-card__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.6rem;
-}
-.offer-card__title {
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin: 0 0 0.4rem;
-}
-.offer-card__prefix { margin: 0 0 0.35rem; }
-.offer-card__meta { margin: 0; font-size: 0.85rem; }
-
 .card {
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.4rem;
-  margin-bottom: 1.25rem;
+  border-radius: 4px;
+  padding: 12px 10px;
+  margin-bottom: 10px;
 }
 .card h2 {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  margin: 0 0 0.75rem;
+  margin: 0 0 8px;
 }
-.deal-actions form { margin-bottom: 0.75rem; }
-.banner-connect {
-  padding: 1rem 1.2rem;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  margin-bottom: 1.25rem;
-}
-.offer-form .ds-dialog__actions {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  margin-top: 1rem;
+.deal-actions form {
+  margin-bottom: 8px;
 }
 
-.deal-hero h1 { margin: 0.4rem 0 0.35rem; }
-.deal-hero .status { margin-bottom: 0.25rem; }
-
-/* landing top bar */
+/* landing keeps its own chrome */
 .landing-app .app-bar {
   position: relative;
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem clamp(28px, 8vw, 140px);
+  padding: 10px 10px;
 }
-.app-bar__brand {
+.landing-app .app-bar__brand {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -160,16 +356,14 @@
   color: var(--fg);
   font-weight: 600;
   font-size: 14px;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.2em;
 }
-.app-bar__brand b { color: var(--accent); }
-.app-bar__brand img {
+.landing-app .app-bar__brand b {
+  color: var(--accent);
+}
+.landing-app .app-bar__brand img {
   width: 28px;
   height: 28px;
-  border-radius: var(--radius);
+  border-radius: 4px;
   object-fit: cover;
-}
-.app-bar__actions .ds-btn {
-  text-transform: none;
-  letter-spacing: 0.02em;
 }

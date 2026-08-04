@@ -3,13 +3,13 @@
 {% block title %}{{ deal.del_title | default(value="Offer") }} · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="app-page">
+<main class="app-main">
   <p class="muted"><a href="/deals/">← Offers</a></p>
 
   <header class="deal-hero">
     <span class="status status--{{ deal.del_status }}">{{ deal.del_status }}</span>
-    <h1>{{ deal.del_title | default(value="Offer") }}</h1>
-    <p class="lead">{{ deal.del_note | default(value="") }}</p>
+    <h1 class="app-main__title">{{ deal.del_title | default(value="Offer") }}</h1>
+    <p class="app-main__sub muted">{{ deal.del_note | default(value="") }}</p>
   </header>
 
   <ol class="lifecycle">

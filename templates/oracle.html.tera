@@ -3,9 +3,9 @@
 {% block title %}Oracle · EscrowNad{% endblock %}
 
 {% block content %}
-<main class="home">
-  <section class="home__hero">
-    <h1>What is the oracle?</h1>
+<main class="app-main app-main--prose">
+  <section>
+    <h1 class="app-main__title">What is the oracle?</h1>
     <p class="lead">EscrowNad settles <strong>USDC</strong> on external proof — not “trust the seller”.</p>
   </section>
 

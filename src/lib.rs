@@ -74,6 +74,7 @@ pub fn app_context() -> &'static AppContext {
 pub fn pages() -> Vec<Box<dyn Page>> {
     let mut out: Vec<Box<dyn Page>> = vec![
         Box::new(pages::IndexPage),
+        Box::new(pages::AboutPage),
         Box::new(pages::CabinetPage),
         Box::new(pages::DealsListPage),
         Box::new(pages::DealNewPage),
@@ -165,6 +166,7 @@ pub enum DbCommand {
     WalletAddressForUser {
         usr_id: i64,
     },
+    ListVerifiedSellers,
 }
 
 // large_enum_variant: `Admin` несёт весь AdminDbResponse (большой по дизайну) —
@@ -186,6 +188,7 @@ pub enum DbResponse {
     Deal(Option<models::Deal>),
     WalletUser(wallet_auth::WalletUserRow),
     WalletAddress(Option<String>),
+    VerifiedSellers(Vec<i64>),
     Ok,
 }
 
@@ -271,6 +274,8 @@ forge_ipc::client! {
             = WalletFindOrCreate { address } -> WalletUser(v) = v;
         pub fn wallet_address_for_user(usr_id: i64) -> Option<String>
             = WalletAddressForUser { usr_id } -> WalletAddress(v) = v;
+        pub fn list_verified_sellers() -> Vec<i64>
+            = ListVerifiedSellers -> VerifiedSellers(v) = v;
     }
 }
 
