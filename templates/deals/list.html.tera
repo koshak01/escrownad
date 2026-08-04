@@ -40,7 +40,9 @@
           <td class="num">{{ d.listed_for }}</td>
           <td>
             {% if d.party_verified %}
-              <span class="badge-ok">✓</span>
+              <span class="badge-ok" title="Verified">
+                <span class="ico ico--check ico--sm" aria-hidden="true"></span>
+              </span>
             {% else %}
               <span class="muted">—</span>
             {% endif %}

@@ -43,6 +43,13 @@ body.app-shell > .brand {
 /* theme classes on <html> — forge theme-mod */
 html.light .app-top__mark.when-light { display: block; }
 html:not(.light) .app-top__mark.when-dark { display: block; }
+/* generic theme visibility (footer labels + icons) */
+.when-dark { display: none; }
+.when-light { display: none; }
+html:not(.light) .when-dark { display: inline; }
+html.light .when-light { display: inline; }
+html:not(.light) .ico.when-dark { display: inline-block; }
+html.light .ico.when-light { display: inline-block; }
 .app-top__nav {
   display: flex;
   align-items: center;
@@ -69,8 +76,37 @@ html:not(.light) .app-top__mark.when-dark { display: block; }
   margin-left: auto;
   flex: none;
 }
-.app-top__cta {
+/* ── monochrome icon pack (static/icons/*.svg via mask) ───────────── */
+.ico {
   display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
+  background-color: currentColor;
+  -webkit-mask: var(--ico) center / contain no-repeat;
+  mask: var(--ico) center / contain no-repeat;
+  vertical-align: -0.12em;
+}
+.ico--sm { width: 0.95em; height: 0.95em; }
+.ico--plus     { --ico: url("/static/icons/plus.svg"); }
+.ico--wallet   { --ico: url("/static/icons/wallet.svg"); }
+.ico--logout   { --ico: url("/static/icons/logout.svg"); }
+.ico--sun      { --ico: url("/static/icons/sun.svg"); }
+.ico--moon     { --ico: url("/static/icons/moon.svg"); }
+.ico--offer    { --ico: url("/static/icons/offer.svg"); }
+.ico--request  { --ico: url("/static/icons/request.svg"); }
+.ico--check    { --ico: url("/static/icons/check.svg"); }
+.ico--external { --ico: url("/static/icons/external.svg"); }
+.ico--search   { --ico: url("/static/icons/search.svg"); }
+.ico--filter   { --ico: url("/static/icons/filter.svg"); }
+.ico--copy     { --ico: url("/static/icons/copy.svg"); }
+.ico--info     { --ico: url("/static/icons/info.svg"); }
+.ico--dispute  { --ico: url("/static/icons/dispute.svg"); }
+
+.app-top__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
@@ -81,6 +117,7 @@ html:not(.light) .app-top__mark.when-dark { display: block; }
   background: transparent;
   cursor: pointer;
   font-family: inherit;
+  line-height: 1.2;
 }
 .app-top__cta:hover {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
@@ -93,8 +130,17 @@ html:not(.light) .app-top__mark.when-dark { display: block; }
   opacity: 0.92;
   background: var(--accent);
 }
+.app-top__cta--icon {
+  padding: 7px 10px;
+}
+.app-top__cta--icon .cta-label {
+  /* keep label; icon alone on very narrow via media if needed */
+}
 .app-top__btn {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -104,6 +150,7 @@ html:not(.light) .app-top__mark.when-dark { display: block; }
   font-weight: 500;
   padding: 7px 12px;
   cursor: pointer;
+  line-height: 1.2;
 }
 .app-top__btn:hover {
   color: var(--fg);
@@ -143,6 +190,9 @@ html:not(.light) .app-top__mark.when-dark { display: block; }
 }
 .app-foot__btn {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: transparent;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -154,6 +204,7 @@ html:not(.light) .app-top__mark.when-dark { display: block; }
   text-transform: uppercase;
   padding: 5px 10px;
   cursor: pointer;
+  line-height: 1.2;
 }
 .app-foot__btn:hover {
   color: var(--fg);
@@ -278,13 +329,16 @@ html.light .side--request {
   padding: 28px 10px !important;
 }
 .badge-ok {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
   font-weight: 600;
   color: #1a7a45;
   background: color-mix(in srgb, #3dff9a 18%, transparent);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 6px;
+  min-width: 1.4rem;
 }
 html.light .badge-ok {
   color: #0d5c32;
@@ -325,11 +379,57 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   padding: 12px 10px;
   max-width: 640px;
 }
+.app-form__title {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
 .app-form__actions {
   display: flex;
   gap: 8px;
   align-items: center;
   margin-top: 12px;
+}
+
+/* listing side: offer | request */
+.side-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.side-toggle__opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  user-select: none;
+}
+.side-toggle__opt:hover {
+  border-color: var(--muted);
+  color: var(--fg);
+}
+.side-toggle__opt input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.side-toggle__opt:has(input:checked) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.side-toggle__opt .ico {
+  width: 1.15em;
+  height: 1.15em;
 }
 .lifecycle {
   display: flex;

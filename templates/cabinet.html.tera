@@ -9,7 +9,10 @@
       <h1 class="app-main__title">My deals</h1>
       <p class="app-main__sub muted">Offers and buys linked to your wallet.</p>
     </div>
-    <a class="app-top__cta" href="/deals/new/">Add offer</a>
+    <a class="app-top__cta" href="/deals/new/" title="Add listing">
+      <span class="ico ico--plus" aria-hidden="true"></span>
+      Add
+    </a>
   </div>
 
   {% if not logged_in %}
