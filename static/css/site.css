@@ -9,9 +9,9 @@
   background: var(--line);
   color: var(--fg);
 }
-.status--listed { background: #2d1b4e; color: #c8b8f0; }
+.status--listed { background: var(--violet-deep); color: var(--lavender); }
 .status--funded,
-.status--awaiting_proof { background: #1a3d35; color: #3dffc8; }
+.status--awaiting_proof { background: #12283a; color: var(--proof); }
 .status--released { background: #143d28; color: #5dff9a; }
 .status--refunded,
 .status--dispute,
@@ -40,10 +40,8 @@
   color: #ff8a8a;
 }
 
-.home__hero img {
-  max-width: min(280px, 100%);
-}
-
+/* homepage is standalone landing (templates/index.html.tera + landing.css).
+   Product chrome lives under /cabinet/ /deals/ /oracle/ after login. */
 .brand-wordmark {
   max-height: 48px;
   height: auto;

@@ -1,0 +1,84 @@
+/* escrownad — приватная заставка.
+   Палитра из tokens.css (Monad-adjacent: deep night + electric violet).
+   Радиус — var(--radius), без pill (design_baseline §4).
+
+   Фон — `cover.webp` (Дедал): full-bleed, тёмный, vibes сети Monad
+   (скорость / фиолет / proof flash). var(--bg) под ней — фолбэк.
+
+   ЗАСТАВКА ВСЕГДА ТЁМНАЯ — осознанно. Текст поверх тёмной картинки,
+   поэтому остаётся светлым при любой системной теме. Standalone:
+   скрипт html.light живёт в _base_core, которого здесь нет.
+   => НЕ добавлять переключатель темы и не подключать _base_core. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font), system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--bg) url('/static/images/cover.webp') center/cover no-repeat;
+  display: flex;
+  flex-direction: column;
+}
+/* Слева тёмный градиент — текст читается даже если cover яркий. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(14, 9, 28, 0.88) 0%, rgba(14, 9, 28, 0.55) 42%, rgba(14, 9, 28, 0.15) 72%, transparent 100%),
+    linear-gradient(180deg, rgba(14, 9, 28, 0.35) 0%, transparent 40%, rgba(14, 9, 28, 0.55) 100%);
+  z-index: 0;
+}
+@media (max-width: 680px) {
+  body { background-position: 65% center; }
+  body::before {
+    background:
+      linear-gradient(180deg, rgba(14, 9, 28, 0.75) 0%, rgba(14, 9, 28, 0.55) 45%, rgba(14, 9, 28, 0.8) 100%);
+  }
+}
+.wrap {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 clamp(28px, 8vw, 140px);
+  max-width: 760px;
+}
+.mark {
+  display: flex; align-items: center; gap: 14px;
+  font-weight: 600; font-size: 18px; letter-spacing: .28em; color: var(--fg);
+}
+.mark .seal {
+  width: 36px; height: 36px; flex: none;
+  border-radius: var(--radius);
+  object-fit: cover;
+}
+.mark b { font-weight: 600; color: var(--accent); }
+.lead {
+  margin-top: 28px; font-weight: 200;
+  font-size: clamp(26px, 4vw, 44px); line-height: 1.22;
+  color: var(--fg); max-width: 14ch;
+}
+.sub { margin-top: 18px; font-weight: 300; font-size: 15px; color: var(--muted); letter-spacing: .02em; }
+.enter { margin-top: 40px; }
+.enter a, .enter button {
+  display: inline-block; text-decoration: none; cursor: pointer;
+  appearance: none; background: transparent; font-family: inherit;
+  font-weight: 500; font-size: 13px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--accent); padding: 13px 36px;
+  border: 1px solid var(--accent); border-radius: var(--radius);
+  transition: background .2s, color .2s, box-shadow .2s;
+}
+.enter a:hover, .enter button:hover {
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: 0 0 28px rgba(110, 84, 255, 0.35);
+}
+.foot {
+  position: relative;
+  z-index: 1;
+  padding: 22px clamp(28px, 8vw, 140px);
+  font-weight: 300; font-size: 12px; color: var(--muted); letter-spacing: .14em;
+}

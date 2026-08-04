@@ -1,30 +1,43 @@
-/* EscrowNad brand tokens — violet + electric cyan (Dedal pack). */
+/* EscrowNad brand tokens — Monad-recognizable night + electric violet.
+   Source vibe: monad.xyz brand kit (Primary #6E54FF / night #0E091C /
+   secondary cyan #85E6FF). Not a copy of Monad logomark — ecosystem
+   adjacent palette so the app reads as “on Monad”.
+
+   Design system: Mulish only; --radius 4–6px (no pill for buttons).
+   Status colors stay semantic from forge core (do not override success/warn/error). */
 
 :root {
-  --bg:        #120a1f;
-  --fg:        #f0ecf8;
-  --muted:     #9a8fb0;
-  --line:      #2d1b4e;
-  --accent:    #3dffc8;
-  --accent-fg: #120a1f;
-  --ink:       #e8e4f0;
-  --violet:    #5b2d9e;
-  --violet-deep: #2d1b4e;
+  /* — dark (default; landing is always dark) — */
+  --bg:          #0e091c;
+  --fg:          #f2effc;
+  --muted:       #9b93b8;
+  --line:        #2a2140;
+  --accent:      #6e54ff;
+  --accent-fg:   #ffffff;
+  --ink:         #e8e4f0;
+
+  /* brand extras (proof flash / secondary) */
+  --violet:      #6e54ff;
+  --violet-deep: #2a1848;
+  --proof:       #85e6ff;
+  --lavender:    #ddd7fe;
 
   --font:    'Mulish';
   --serif:   var(--font);
 
-  --radius:  6px;
+  --radius:  4px;
   --gutter:  24px;
   --max-w:   1080px;
 }
 
 html.light {
-  --bg:        #f7f5fb;
-  --fg:        #1a0f2e;
-  --muted:     #6a5f7a;
-  --line:      #d8d0e8;
-  --accent:    #5b2d9e;
-  --accent-fg: #f7f5fb;
-  --ink:       #1a0f2e;
+  --bg:        #f5f3ff;
+  --fg:        #0e091c;
+  --muted:     #5c5478;
+  --line:      #ddd7fe;
+  /* darker violet on light for contrast */
+  --accent:    #5540e0;
+  --accent-fg: #ffffff;
+  --ink:       #0e091c;
+  --proof:     #1a8fb0;
 }

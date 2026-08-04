@@ -1,24 +1,84 @@
-{% extends "_base.html.tera" %}
+{# escrownad — приватная заставка (канон закрытых приложений).
 
-{% block title %}{{ constants.site_title | default(value="EscrowNad") }}{% endblock %}
+   Паттерн коллектива (Око / Кайрос / Плутос / Nexus): одна страница —
+   знак, слоган, кнопка «Войти». Публичного продуктового лендинга нет:
+   внутрь — только по учётной записи. Кабинет/Search/Oracle — после входа.
 
-{% block content %}
-<main class="home">
-  <section class="home__hero">
-    <p>
-      <img src="/static/brand/wordmark.png" alt="EscrowNad" class="brand-wordmark">
-    </p>
-    <h1>Settle on proof</h1>
-    <p class="lead">
-      Proof-escrow on <strong>Monad</strong>. Settlement: <strong>USDC</strong>.
-      First asset: <strong>IPv4</strong> (RIPE PA/PI). USDC unlocks only on oracle fact.
-    </p>
-    <p>
-      <a class="ds-btn ds-btn--primary" href="/cabinet/">Cabinet</a>
-      <a class="ds-btn" href="/deals/">Search</a>
-      <a class="ds-btn" href="/oracle/">Oracle</a>
-      <a class="ds-btn" href="/admin/">Admin</a>
-    </p>
-  </section>
-</main>
-{% endblock %}
+   Standalone (без `extends _base_core`) — как у Ока/Кайроса: шапка/меню/футер
+   ядра тут не нужны. Mulish и CSS грузятся явно.
+
+   CSS — ТОЛЬКО файлом (`landing.css`). Inline `<style>` запрещён
+   (design_baseline §5: прод-CSP режет его молча).
+
+   Auth сейчас: login / password (forge modal). Wallet — вторым шагом позже.
+   Redirect после входа: /cabinet/ (продукт), не /admin/.
+
+   Cover: static/images/cover.webp (Дедал, vault + violet speed, left dark). #}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EscrowNad</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg?v={{ salt }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icon-32.png?v={{ salt }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/images/icon-16.png?v={{ salt }}">
+  <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png?v={{ salt }}">
+  {# Mulish — шрифт коллектива. Standalone-лендинг грузит сам (не через _base_core). #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mulish:wght@200;300;400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/static/css/tokens.css?v={{ salt }}">
+  <link rel="stylesheet" href="/shared/css/toast.css?v={{ salt }}">
+  <link rel="stylesheet" href="/static/css/landing.css?v={{ salt }}">
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark">
+      {# Знак — sealed vault + proof (Дедал). Пока SVG из brand pack. #}
+      <img class="seal" src="/static/images/mark.svg?v={{ salt }}" alt="" width="36" height="36">
+      <span>ESCROW<b>·</b>NAD</span>
+    </div>
+    <h1 class="lead">Settle on proof.</h1>
+    <p class="sub">Доступ — по учётной записи.</p>
+    <div class="enter">
+      {% if user %}
+        <a href="/cabinet/">Войти</a>
+      {% else %}
+        <button type="button" data-modal="login" data-redirect-after="/cabinet/">Войти</button>
+      {% endif %}
+    </div>
+  </div>
+  <div class="foot">© EscrowNad · приватный доступ · Monad</div>
+
+  {# Аноним: WS-стек forge для модалки логина (open_modal → login → redirect).
+     Залогиненному не нужен — кнопка ведёт сразу в /cabinet/. #}
+  {% if not user %}
+  <input type="hidden" id="ws_url" value="{{ ws_url }}">
+  <div id="toast-root"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.0.0-beta3/dist.es5+umd/msgpack.min.js"
+          integrity="sha384-vUkIRBsoVitNTUNfC9MIDBQf7TZCx+hOi7JsClrFp1kdwYFxA85lo0PZs/zm2Uqj"
+          crossorigin="anonymous"></script>
+  <script src="/shared/js/msgpack-shim.js?v={{ salt }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"
+          integrity="sha384-WAahC3S+69Co45zyyuhCjvdMwo7a42Yn0mM0IgZIUlYNebG24AVkPUltj3BQnM85"
+          crossorigin="anonymous"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "forge/toast":      "/shared/js/toast.js?v={{ salt }}",
+      "forge/ws":         "/shared/js/ws-client.js?v={{ salt }}",
+      "forge/form":       "/shared/js/form.js?v={{ salt }}",
+      "forge/confirm":    "/shared/js/confirm.js?v={{ salt }}",
+      "forge/theme":      "/shared/js/theme-mod.js?v={{ salt }}",
+      "forge/ui-actions": "/shared/js/ui-actions.js?v={{ salt }}",
+      "forge/utils":      "/shared/js/utils.js?v={{ salt }}"
+    }
+  }
+  </script>
+  <script type="module" src="/shared/js/bootstrap.js?v={{ salt }}"></script>
+  {% endif %}
+</body>
+</html>
