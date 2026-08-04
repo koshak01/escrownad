@@ -59,21 +59,24 @@ cargo build --bins
 | Admin | http://localhost:4100/admin/ |
 | Login | `adm@escrownad.com` — `pass.txt` (not in git) |
 
-## Demo path
+## Demo path (product skeleton, mock USDC)
 
-1. http://localhost:4100/ — USDC pitch + brand  
-2. http://localhost:4100/oracle/  
-3. http://localhost:4100/deals/  
-4. Deal card — status / checklist / release_tx  
-5. Observer smoke:
+1. http://localhost:4100/cabinet/ — one cabinet  
+2. http://localhost:4100/deals/new/ — create draft lot  
+3. Deal card actions (buttons):  
+   `soft_verify` → `list` → `request` → `accept` → `start_prepare` →  
+   `mark_prepared` → `fund` (mock USDC lock) → status `awaiting_proof`  
+4. Observer:
 
 ```bash
-psql -h 127.0.0.1 -U html -d 'escrownad.com' -c \
-  "UPDATE deals SET del_status='awaiting_proof', release_tx=NULL, ripe_match_key=NULL
-   WHERE prefix='176.120.88.0/21';"
 OBSERVER_ONCE=1 ./target/debug/escrownad-observer
-# card → released, release_tx mock:usdc:ripe:…
+# → released, release_tx mock:usdc:ripe:…
 ```
+
+5. Search: http://localhost:4100/deals/  
+6. Oracle: http://localhost:4100/oracle/  
+
+Fixtures: two `listed` IP lots after `seeds/deals_flow.sql`.
 
 ## Product flow
 
