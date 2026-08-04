@@ -1,4 +1,4 @@
-//! Public deals list `/deals/` and deal card `/deals/{id}/`.
+//! Deals search, new lot, deal card.
 
 use async_trait::async_trait;
 use forge_ws::{Page, RequestContext, WsError, WsResult};
@@ -26,6 +26,21 @@ impl Page for DealsListPage {
     }
 }
 
+pub struct DealNewPage;
+
+#[async_trait]
+impl Page for DealNewPage {
+    fn path(&self) -> &'static str {
+        "/deals/new/"
+    }
+    fn template(&self) -> &'static str {
+        "deals/new.html.tera"
+    }
+    async fn load(&self, _ctx: &mut RequestContext) -> WsResult<()> {
+        Ok(())
+    }
+}
+
 pub struct DealShowPage;
 
 #[async_trait]
@@ -49,6 +64,7 @@ impl Page for DealShowPage {
             .map_err(|e| WsError::PageLoad(format!("get_deal: {e}")))?
             .ok_or_else(|| WsError::NotFound("deal not found".into()))?;
         ctx.insert("deal", &deal);
+        ctx.insert("usr_id", &ctx.user.as_ref().map(|u| u.usr_id));
         Ok(())
     }
 }

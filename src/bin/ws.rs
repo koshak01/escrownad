@@ -18,7 +18,9 @@ use axum::routing::get;
 use forge_ipc::{CommandHandler, serve_ipc};
 use forge_session::RedisClient;
 use escrownad::ws_handlers::echo::EchoParams;
-use escrownad::ws_handlers::{DemoDeleteParams, DemoSaveParams};
+use escrownad::ws_handlers::{
+    DealActionParams, DealSaveParams, DemoDeleteParams, DemoSaveParams,
+};
 use escrownad::{AppContext, DbClient, NotifierClient, init_app_context, sockets};
 // ──────────────────────────────────────────────────────────────────────────────
 // Config
@@ -119,6 +121,11 @@ forge_admin::wsgate_handler_with_admin! {
             | forge_ws::AuthRequirement::Roles(&["manager", "admin"]);
         async fn demos_delete(&self, _conn: &_, params: DemoDeleteParams) -> ActionResp
             | forge_ws::AuthRequirement::Roles(&["manager", "admin"]);
+        // Deal flow (cabinet): public for demo; login binds seller/buyer usr_id.
+        async fn deals_save   (&self, conn: &_, params: DealSaveParams) -> ActionResp
+            | forge_ws::AuthRequirement::Public;
+        async fn deals_action (&self, conn: &_, params: DealActionParams) -> ActionResp
+            | forge_ws::AuthRequirement::Public;
     }
 }
 
@@ -187,6 +194,12 @@ impl WsState {
     }
     async fn demos_delete(&self, _: &WsConn, p: DemoDeleteParams) -> Result<ActionResp, String> {
         escrownad::ws_handlers::demos_delete(p).await
+    }
+    async fn deals_save(&self, conn: &WsConn, p: DealSaveParams) -> Result<ActionResp, String> {
+        escrownad::ws_handlers::deals_save(p, conn.usr_id()).await
+    }
+    async fn deals_action(&self, conn: &WsConn, p: DealActionParams) -> Result<ActionResp, String> {
+        escrownad::ws_handlers::deals_action(p, conn.usr_id()).await
     }
 }
 

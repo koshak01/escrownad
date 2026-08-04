@@ -1,0 +1,29 @@
+{% extends "_base.html.tera" %}
+
+{% block title %}New lot · EscrowNad{% endblock %}
+
+{% block content %}
+<main class="home">
+  <section class="home__hero">
+    <p class="muted"><a href="/cabinet/">← cabinet</a></p>
+    <h1>New lot</h1>
+    <p class="lead">v1 asset = IP (RIPE). Domain / work — later. Price in USDC (internal FixedN raw ×1e8).</p>
+  </section>
+
+  <section>
+    <form class="ds-form">
+      {{ <field name="del_title" type="text" label="Title" placeholder="IPv4 /24 PI transfer" required={true} /> }}
+      {{ <field name="asset_type" type="text" label="Asset type" placeholder="ip" /> }}
+      {{ <field name="resource_kind" type="text" label="RIPE kind PA|PI" placeholder="PI" /> }}
+      {{ <field name="prefix" type="text" label="Prefix / block" placeholder="176.120.88.0/21" required={true} /> }}
+      {{ <field name="from_org" type="text" label="From org" /> }}
+      {{ <field name="to_org" type="text" label="To org (buyer LIR)" /> }}
+      {{ <field name="seller_wallet" type="text" label="Seller wallet (Monad)" /> }}
+      {{ <field name="contact_email" type="text" label="Contact email (soft verify IP)" /> }}
+      {{ <field name="del_note" type="textarea" label="Notes" /> }}
+      {{ <field name="del_amount" type="text" label="Amount raw (×1e8, e.g. 150000000000 = 1500)" /> }}
+      {{ <button label="Save draft" type="submit" handler="deals_save" variant="primary" /> }}
+    </form>
+  </section>
+</main>
+{% endblock %}

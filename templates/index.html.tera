@@ -14,8 +14,9 @@
       First asset: <strong>IPv4</strong> (RIPE PA/PI). USDC unlocks only on oracle fact.
     </p>
     <p>
-      <a class="ds-btn ds-btn--primary" href="/deals/">Browse deals</a>
-      <a class="ds-btn" href="/oracle/">What is the oracle?</a>
+      <a class="ds-btn ds-btn--primary" href="/cabinet/">Cabinet</a>
+      <a class="ds-btn" href="/deals/">Search</a>
+      <a class="ds-btn" href="/oracle/">Oracle</a>
       <a class="ds-btn" href="/admin/">Admin</a>
     </p>
   </section>

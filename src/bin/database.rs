@@ -108,6 +108,12 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                     .map_err(|e| e.to_string())?;
                 Ok(DbResponse::Deals(deals))
             }
+            DbCommand::ListDealsForUser { usr_id } => {
+                let deals = escrownad::models::Deal::list_for_user(&self.pool, usr_id)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(DbResponse::Deals(deals))
+            }
             DbCommand::ListDealsFiltered { filter, sort } => {
                 use escrownad::models::Deal;
                 let deals = filter

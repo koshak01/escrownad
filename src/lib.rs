@@ -73,7 +73,9 @@ pub fn app_context() -> &'static AppContext {
 pub fn pages() -> Vec<Box<dyn Page>> {
     let mut out: Vec<Box<dyn Page>> = vec![
         Box::new(pages::IndexPage),
+        Box::new(pages::CabinetPage),
         Box::new(pages::DealsListPage),
+        Box::new(pages::DealNewPage),
         Box::new(pages::DealShowPage),
         Box::new(pages::OraclePage),
         // ЭТАЛОН: доменные admin-страницы проекта (demo-сущность).
@@ -141,6 +143,9 @@ pub enum DbCommand {
     // ── deals (proof-escrow) ────────────────────────────────────────────────
     ListDealsListed,
     ListDealsBoard,
+    ListDealsForUser {
+        usr_id: i64,
+    },
     ListDealsFiltered {
         filter: models::DealListFilter,
         sort: Option<forge_admin::handlers::SortSpec>,
@@ -242,6 +247,8 @@ forge_ipc::client! {
         // deals
         pub fn list_deals_listed() -> Vec<models::Deal> = ListDealsListed -> Deals(v) = v;
         pub fn list_deals_board() -> Vec<models::Deal> = ListDealsBoard -> Deals(v) = v;
+        pub fn list_deals_for_user(usr_id: i64) -> Vec<models::Deal>
+            = ListDealsForUser { usr_id } -> Deals(v) = v;
         pub fn list_deals_filtered(filter: models::DealListFilter, sort: Option<forge_admin::handlers::SortSpec>)
             -> Vec<models::Deal>
             = ListDealsFiltered { filter, sort } -> Deals(v) = v;

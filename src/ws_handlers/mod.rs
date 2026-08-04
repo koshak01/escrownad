@@ -12,8 +12,10 @@
 //! `category_save` и т.д. Регистрация — в `bin/ws.rs` через `router.route(...)`
 //! или dispatch-таблицу wsgate.
 
+pub mod deals;
 pub mod demos;
 pub mod echo;
 
+pub use deals::{DealActionParams, DealSaveParams, deals_action, deals_save};
 pub use demos::{DemoDeleteParams, DemoSaveParams, demos_delete, demos_save};
 pub use echo::echo;
