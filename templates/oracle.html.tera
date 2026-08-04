@@ -6,17 +6,17 @@
 <main class="home">
   <section class="home__hero">
     <h1>What is the oracle?</h1>
-    <p class="lead">EscrowNad settles on external proof — not on “trust the seller”.</p>
+    <p class="lead">EscrowNad settles <strong>USDC</strong> on external proof — not “trust the seller”.</p>
   </section>
 
   <section>
     <h2>Flow</h2>
     <ol>
       <li><strong>Seller</strong> lists an IPv4 block (PA or PI) and the intended transfer (from → to).</li>
-      <li><strong>Buyer</strong> deposits funds into an on-chain lock on <strong>Monad</strong>.</li>
+      <li><strong>Buyer</strong> deposits <strong>USDC</strong> into the on-chain lock on <strong>Monad</strong> (after ERC-20 approve).</li>
       <li><strong>Observer</strong> (Rust) polls public RIPE transfer tables.</li>
-      <li>When a matching row appears → <strong>release</strong> to seller.</li>
-      <li>If deadline passes with no fact → <strong>refund</strong> buyer.</li>
+      <li>Matching row → <strong>release USDC</strong> to seller.</li>
+      <li>Deadline with no fact → <strong>refund USDC</strong> to buyer.</li>
     </ol>
 
     <h2>RIPE sources</h2>

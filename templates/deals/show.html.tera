@@ -37,9 +37,9 @@
       <dd>
         <ul>
           <li>Seller holds prefix (self-check)</li>
-          <li>Buyer deposits into on-chain lock → status <code>funded</code> / <code>awaiting_proof</code></li>
-          <li>RIPE {{ deal.resource_kind }} JSON match → <code>released</code> (observer)</li>
-          <li>Timeout without fact → <code>refunded</code></li>
+          <li>Buyer <code>approve</code> + deposits <strong>USDC</strong> → <code>funded</code> / <code>awaiting_proof</code></li>
+          <li>RIPE {{ deal.resource_kind }} JSON match → USDC <code>released</code> to seller</li>
+          <li>Timeout without fact → USDC <code>refunded</code> to buyer</li>
         </ul>
       </dd>
     </dl>
