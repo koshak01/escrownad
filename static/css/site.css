@@ -377,7 +377,10 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 12px 10px;
-  max-width: 640px;
+  max-width: 720px;
+}
+.app-form--listing {
+  max-width: 760px;
 }
 .app-form__title {
   margin: 0 0 12px;
@@ -385,51 +388,61 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   font-weight: 600;
   letter-spacing: -0.02em;
 }
+.app-form__section {
+  margin: 18px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .app-form__actions {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
-/* listing side: offer | request */
-.side-toggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 14px;
+/* product chips: disabled (soon) types */
+.app-form .ds-chip.is-disabled,
+.app-form .ds-chip:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.35);
 }
-.side-toggle__opt {
+.app-form .ds-chips__list {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  background: transparent;
-  user-select: none;
+  flex-wrap: wrap;
+  gap: 6px;
 }
-.side-toggle__opt:hover {
-  border-color: var(--muted);
+/* hide rest of form until type picked */
+.listing-rest[hidden],
+.listing-ip[hidden] {
+  display: none !important;
+}
+/* room for quill / fixed_n inside product chrome */
+.app-form .ds-field {
+  margin-bottom: 12px;
+}
+.app-form .ds-field--wysiwyg .ql-toolbar,
+.app-form .ds-field--wysiwyg .ql-container {
+  border-color: var(--line);
+  background: var(--bg);
   color: var(--fg);
 }
-.side-toggle__opt input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.app-form .ds-field--wysiwyg .ql-toolbar {
+  border-radius: 4px 4px 0 0;
 }
-.side-toggle__opt:has(input:checked) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+.app-form .ds-field--wysiwyg .ql-container {
+  border-radius: 0 0 4px 4px;
+  font-family: inherit;
 }
-.side-toggle__opt .ico {
-  width: 1.15em;
-  height: 1.15em;
+.app-form .ds-file-upload__dropzone {
+  border-color: var(--line);
+  border-radius: 4px;
 }
 .lifecycle {
   display: flex;

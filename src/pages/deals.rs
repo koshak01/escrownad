@@ -61,11 +61,32 @@ fn listed_for(from: Timestamp) -> String {
     }
 }
 
+/// Plain one-line text for market board (wysiwyg stores HTML).
+fn strip_html_one_line(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    let t = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    if t.is_empty() {
+        "—".into()
+    } else {
+        t
+    }
+}
+
 fn description(d: &Deal) -> String {
     d.del_title
-        .clone()
+        .as_deref()
         .filter(|s| !s.trim().is_empty())
-        .or_else(|| d.del_note.clone().filter(|s| !s.trim().is_empty()))
+        .or_else(|| d.del_note.as_deref().filter(|s| !s.trim().is_empty()))
+        .map(strip_html_one_line)
         .unwrap_or_else(|| "—".into())
 }
 

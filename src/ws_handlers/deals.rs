@@ -12,14 +12,17 @@ use crate::models::Deal;
 pub struct DealSaveParams {
     #[serde(default)]
     pub id: Option<i64>,
+    /// Description (HTML from wysiwyg). No separate title field.
     #[serde(default)]
     pub del_title: Option<String>,
+    /// Terms (HTML from wysiwyg).
     #[serde(default)]
     pub del_note: Option<String>,
     #[serde(default)]
     pub asset_type: Option<String>,
     #[serde(default)]
     pub resource_kind: Option<String>,
+    /// Network / prefix text.
     #[serde(default)]
     pub prefix: Option<String>,
     #[serde(default)]
@@ -30,6 +33,7 @@ pub struct DealSaveParams {
     pub seller_wallet: Option<String>,
     #[serde(default)]
     pub contact_email: Option<String>,
+    /// FixedN<8> raw from `<fixed_n scale=8>` (not whole USDC units).
     #[serde(default)]
     pub del_amount: Option<i64>,
     /// If true after save → soft_verify + list (publish to market).
@@ -38,6 +42,16 @@ pub struct DealSaveParams {
     /// `offer` (sell) | `request` (buy demand).
     #[serde(default)]
     pub listing_side: Option<String>,
+    /// IP meta (stored in checklist_json + mapped columns).
+    #[serde(default)]
+    pub geo: Option<String>,
+    #[serde(default)]
+    pub operator: Option<String>,
+    /// CIDR size without slash, e.g. "24".
+    #[serde(default)]
+    pub size: Option<String>,
+    #[serde(default)]
+    pub is_public: Option<bool>,
 }
 
 fn require_actor(actor: Option<i64>) -> Result<i64, String> {
@@ -112,25 +126,68 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         deal.del_note = Some(v);
     }
     if let Some(v) = p.asset_type {
-        deal.asset_type = v;
+        let t = v.trim().to_ascii_lowercase();
+        // v1 product path: only IP is live
+        if t != "ip" && !t.is_empty() {
+            return Err("only IP listings are available for now".into());
+        }
+        deal.asset_type = if t.is_empty() { "ip".into() } else { t };
     }
     if let Some(v) = p.resource_kind {
-        deal.resource_kind = v;
+        let k = v.trim().to_ascii_uppercase();
+        if k == "PA" || k == "PI" {
+            deal.resource_kind = k;
+        }
     }
     if let Some(v) = p.prefix {
-        deal.prefix = v;
+        let mut net = v.trim().to_string();
+        // compose CIDR if network has no slash and size chip is set
+        if !net.contains('/') {
+            if let Some(sz) = p.size.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                let sz = sz.trim_start_matches('/');
+                if sz.chars().all(|c| c.is_ascii_digit()) {
+                    net = format!("{net}/{sz}");
+                }
+            }
+        }
+        deal.prefix = net;
     }
-    if let Some(v) = p.from_org {
+    // geo → from_org (display); operator → to_org
+    if let Some(v) = p.geo.or(p.from_org) {
         deal.from_org = Some(v);
     }
-    if let Some(v) = p.to_org {
+    if let Some(v) = p.operator.or(p.to_org) {
         deal.to_org = Some(v);
     }
     if let Some(v) = p.contact_email {
         deal.contact_email = Some(v);
     }
-    if let Some(units) = p.del_amount {
-        deal.del_amount = forge_fixed_n::FixedN::from_int(units);
+    if let Some(raw) = p.del_amount {
+        // form `<fixed_n scale=8>` already sends FixedN raw
+        deal.del_amount = forge_fixed_n::FixedN::new(raw);
+    }
+
+    // structured IP meta in checklist_json
+    {
+        let mut meta = serde_json::Map::new();
+        if let Some(ref g) = deal.from_org {
+            meta.insert("geo".into(), serde_json::Value::String(g.clone()));
+        }
+        if let Some(ref op) = deal.to_org {
+            meta.insert("operator".into(), serde_json::Value::String(op.clone()));
+        }
+        if let Some(sz) = p.size.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            meta.insert(
+                "size".into(),
+                serde_json::Value::String(sz.trim_start_matches('/').into()),
+            );
+        }
+        if let Some(pub_) = p.is_public {
+            meta.insert("public".into(), serde_json::Value::Bool(pub_));
+        }
+        if !meta.is_empty() {
+            deal.checklist_json = Some(serde_json::Value::Object(meta).to_string());
+        }
     }
 
     // Bind creator to offer (seller) or request (buyer) + linked wallet
@@ -165,9 +222,13 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
 
     let id = deal.del_id;
     let msg = if publish {
-        "Offer published"
+        if deal.listing_side == "request" {
+            "Request published"
+        } else {
+            "Offer published"
+        }
     } else {
-        "Offer saved"
+        "Listing saved"
     };
     Ok(ActionResp::redirect_with_success(
         &format!("/deals/{id}/"),

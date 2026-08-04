@@ -1,0 +1,54 @@
+// listing-form.js — progressive disclosure for /deals/new/
+// Type chips first; only after pick show IP params + common fields.
+// Canon: forge chips / Form.collectInputs → WS handler deals_save.
+
+function assetTypeValue(form) {
+    const hidden = form.querySelector('[data-chips-name="asset_type"] input[type="hidden"]');
+    return (hidden?.value || '').trim();
+}
+
+function refreshListingForm(form) {
+    const type = assetTypeValue(form);
+    const rest = form.querySelector('[data-listing-rest]');
+    const ip = form.querySelector('[data-listing-ip]');
+    if (!rest) return;
+
+    if (!type) {
+        rest.hidden = true;
+        return;
+    }
+    rest.hidden = false;
+    if (ip) ip.hidden = type !== 'ip';
+}
+
+function bindListingForm(form) {
+    if (!form || form.dataset.listingBound) return;
+    form.dataset.listingBound = '1';
+
+    refreshListingForm(form);
+
+    // chips.js updates hidden on click but does not fire change — listen here
+    form.addEventListener('click', (e) => {
+        if (e.target.closest('[data-chips-name="asset_type"] .ds-chip:not([disabled])')) {
+            requestAnimationFrame(() => refreshListingForm(form));
+        }
+    });
+
+    // also if something sets hidden programmatically
+    const typeHidden = form.querySelector('[data-chips-name="asset_type"] input[type="hidden"]');
+    if (typeHidden) {
+        const obs = new MutationObserver(() => refreshListingForm(form));
+        obs.observe(typeHidden, { attributes: true, attributeFilter: ['value'] });
+    }
+}
+
+function initAll() {
+    document.querySelectorAll('[data-listing-form]').forEach(bindListingForm);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAll);
+} else {
+    initAll();
+}
+document.addEventListener('html-replaced', initAll);
