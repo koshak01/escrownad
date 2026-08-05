@@ -327,8 +327,12 @@ struct ChainParams {
 
 /// Собирает параметры оплаты. `None`, если цепь не настроена или сделке
 /// нечего оплачивать (нет продавца, суммы или срока).
-fn chain_params(deal: &Deal) -> Option<ChainParams> {
-    if !crate::chain::types::ChainMode::from_env().is_live() {
+///
+/// Настройки берутся из константы `chain` в базе — она приезжает в
+/// глобальный контекст при старте ws и правится через `/admin/constants/`.
+fn chain_params(deal: &Deal, ctx: &RequestContext) -> Option<ChainParams> {
+    let config = crate::chain::types::ChainConfig::from_constants(&ctx.global.constants)?;
+    if !config.mode().is_live() || config.chain_id == 0 {
         return None;
     }
     let seller = deal.seller_wallet.clone().filter(|s| !s.is_empty())?;
@@ -337,14 +341,14 @@ fn chain_params(deal: &Deal) -> Option<ChainParams> {
         return None;
     }
     let deadline = deal.deadline_ts.map(|d| d.raw()).filter(|d| *d > 0)? as u64;
-    let chain_id: u64 = std::env::var("MONAD_CHAIN_ID").ok()?.trim().parse().ok()?;
+    let chain_id = config.chain_id;
 
     Some(ChainParams {
         chain_id,
         chain_id_hex: format!("0x{chain_id:x}"),
-        rpc_url: std::env::var("MONAD_RPC").ok()?,
-        usdc: std::env::var("USDC_ADDRESS").ok()?,
-        lock: std::env::var("ESCROW_LOCK_ADDRESS").ok()?,
+        rpc_url: config.rpc.clone(),
+        usdc: config.usdc.clone(),
+        lock: config.lock.clone(),
         deal_id: crate::chain::core::deal_id(&deal.del_hash).to_string(),
         condition_hash: crate::chain::core::condition_hash(
             &deal.prefix,
@@ -414,7 +418,7 @@ impl Page for DealShowPage {
 
         // Параметры для кошелька покупателя: approve + fund делает браузер.
         // Суммы отдаём строкой — в JS числа больше 2^53 теряют точность.
-        let chain = chain_params(&deal);
+        let chain = chain_params(&deal, ctx);
         ctx.insert("chain_ready", &chain.is_some());
         if let Some(c) = chain {
             ctx.insert("chain", &c);

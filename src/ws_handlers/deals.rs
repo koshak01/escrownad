@@ -411,7 +411,21 @@ pub async fn deals_funded(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "deal not found".to_string())?;
 
-    let reader = crate::chain::core::ChainReader::from_env()
+    // Настройки цепи — из константы `chain` в базе (правится в админке).
+    let constants = app_context()
+        .db
+        .get_constants()
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut chain_map = std::collections::HashMap::new();
+    for key in constants.keys() {
+        if let Ok(Some(v)) = constants.get::<serde_json::Value>(key) {
+            chain_map.insert(key.clone(), v);
+        }
+    }
+    let config = crate::chain::types::ChainConfig::from_constants(&chain_map)
+        .ok_or_else(|| "on-chain settlement is not configured".to_string())?;
+    let reader = crate::chain::core::ChainReader::new(&config)
         .ok_or_else(|| "on-chain settlement is not configured".to_string())?;
     let (state, amount) = reader
         .deal_state(&deal.del_hash)

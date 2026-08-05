@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use escrownad::chain::core::ObserverChain;
-use escrownad::chain::types::{ChainMode, LockState};
+use escrownad::chain::types::{ChainConfig, LockState};
 use escrownad::observer::{self, ResourceKind};
 use escrownad::{DbClient, sockets};
 use tracing::{error, info, warn};
@@ -36,13 +36,13 @@ async fn run() -> Result<()> {
         .context("wait database")?;
     info!(socket = sockets::DATABASE, "database ready");
 
-    // Живой режим включается только при полной конфигурации цепи;
-    // иначе продолжаем в mock, но говорим об этом в лог явно.
+    // Настройки цепи живут в константе `chain` (таблица constants),
+    // правятся через /admin/constants/ — ни окружения, ни файлов.
     // Наблюдателю, в отличие от остальных бинарников, нужен приватный ключ.
     // Нет ключа — не падаем, а работаем в mock и говорим об этом громко:
     // сервис должен пережить неполную конфигурацию, а не уйти в крашлуп.
-    let chain = match ChainMode::from_env() {
-        ChainMode::Live => match ObserverChain::from_env() {
+    let chain = match load_chain_config(&db).await {
+        Some(config) if config.mode().is_live() => match ObserverChain::new(config) {
             Ok(c) => match c.observer_address() {
                 Ok(addr) => {
                     info!(observer = %addr, "цепь: живой режим");
@@ -58,7 +58,7 @@ async fn run() -> Result<()> {
                 None
             }
         },
-        ChainMode::Mock => {
+        _ => {
             warn!("цепь: режим mock — выпуск денег не отправляется в сеть");
             None
         }
@@ -75,6 +75,24 @@ async fn run() -> Result<()> {
         tokio::time::sleep(Duration::from_secs(interval)).await;
     }
     Ok(())
+}
+
+/// Читает настройки цепи из констант базы.
+async fn load_chain_config(db: &DbClient) -> Option<ChainConfig> {
+    let constants = match db.get_constants().await {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(error = %e, "не прочитал константы — цепь недоступна");
+            return None;
+        }
+    };
+    let mut map = std::collections::HashMap::new();
+    for key in constants.keys() {
+        if let Ok(Some(v)) = constants.get::<serde_json::Value>(key) {
+            map.insert(key.clone(), v);
+        }
+    }
+    ChainConfig::from_constants(&map)
 }
 
 async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {

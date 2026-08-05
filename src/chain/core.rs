@@ -108,15 +108,20 @@ pub struct ChainReader {
 }
 
 impl ChainReader {
-    /// Собирает читателя из окружения. `None`, если цепь не настроена.
-    pub fn from_env() -> Option<Self> {
-        let rpc_url = std::env::var("MONAD_RPC").ok()?;
-        let lock_raw = std::env::var("ESCROW_LOCK_ADDRESS").ok()?;
-        let lock = Address::from_str(lock_raw.trim()).ok()?;
-        if rpc_url.trim().is_empty() {
+    /// Собирает читателя из настроек цепи (константа `chain` в базе).
+    /// `None`, если цепь не в живом режиме или адрес замка не разобрался.
+    pub fn new(config: &ChainConfig) -> Option<Self> {
+        if !config.mode().is_live() {
             return None;
         }
-        Some(Self { rpc_url, lock })
+        let lock = Address::from_str(config.lock.trim()).ok()?;
+        if config.rpc.trim().is_empty() {
+            return None;
+        }
+        Some(Self {
+            rpc_url: config.rpc.clone(),
+            lock,
+        })
     }
 
     /// Состояние сделки в замке: статус и сумма.
@@ -124,7 +129,7 @@ impl ChainReader {
         let url = self
             .rpc_url
             .parse()
-            .map_err(|e| ChainError::Config(format!("MONAD_RPC не разбирается: {e}")))?;
+            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
         let provider = ProviderBuilder::new().connect_http(url);
         let contract = IEscrowLock::new(self.lock, &provider);
         let d = contract
@@ -143,14 +148,17 @@ pub struct ObserverChain {
 }
 
 impl ObserverChain {
-    /// Собирает клиента из настроек окружения.
-    pub fn from_env() -> Result<Self, ChainError> {
-        let config = ChainConfig::from_env()?;
-        Self::new(config)
-    }
-
+    /// Собирает клиента подписи из настроек цепи.
+    ///
+    /// # Параметры
+    /// * `config` — значение константы `chain` из базы
+    ///
+    /// # Возвращает
+    /// * `Ok(_)` — есть и адрес замка, и ключ наблюдателя
+    /// * `Err(_)` — чего-то не хватает, с указанием что именно
     pub fn new(config: ChainConfig) -> Result<Self, ChainError> {
-        let lock = parse_address("ESCROW_LOCK_ADDRESS", &config.escrow_lock)?;
+        config.require_observer_key()?;
+        let lock = parse_address("chain.lock", &config.lock)?;
         Ok(Self { config, lock })
     }
 
@@ -162,7 +170,7 @@ impl ObserverChain {
     fn signer(&self) -> Result<PrivateKeySigner, ChainError> {
         PrivateKeySigner::from_str(self.config.observer_key.trim()).map_err(|e| {
             // текст ключа в лог не попадает
-            ChainError::Config(format!("OBSERVER_PRIVATE_KEY не разбирается: {e}"))
+            ChainError::Config(format!("chain.observer_key не разбирается: {e}"))
         })
     }
 
@@ -170,9 +178,9 @@ impl ObserverChain {
         let signer = self.signer()?;
         let url = self
             .config
-            .rpc_url
+            .rpc
             .parse()
-            .map_err(|e| ChainError::Config(format!("MONAD_RPC не разбирается: {e}")))?;
+            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
         Ok(ProviderBuilder::new().wallet(signer).connect_http(url))
     }
 

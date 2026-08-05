@@ -27,76 +27,99 @@ pub enum ChainMode {
 }
 
 impl ChainMode {
-    /// Читает режим из окружения (`CHAIN_MODE=live|mock`).
-    ///
-    /// Живой режим требует только адрес контракта: читать состояние замка и
-    /// отдавать браузеру параметры оплаты можно без всяких ключей. Приватный
-    /// ключ нужен единственному процессу — наблюдателю, и его наличие
-    /// проверяет [`ChainConfig::from_env`], а не этот метод.
-    pub fn from_env() -> Self {
-        let requested = std::env::var("CHAIN_MODE")
-            .map(|v| v.trim().eq_ignore_ascii_case("live"))
-            .unwrap_or(false);
-        if !requested {
-            return Self::Mock;
-        }
-        if env_non_empty("ESCROW_LOCK_ADDRESS") {
-            Self::Live
-        } else {
-            tracing::warn!("CHAIN_MODE=live, но не задан ESCROW_LOCK_ADDRESS — работаем в mock");
-            Self::Mock
-        }
-    }
-
     pub fn is_live(self) -> bool {
         self == Self::Live
     }
 }
 
-fn env_non_empty(key: &str) -> bool {
-    std::env::var(key)
-        .map(|v| !v.trim().is_empty())
-        .unwrap_or(false)
-}
+/// Код константы в таблице `constants`, где лежат настройки цепи.
+///
+/// Всё хранится в базе и правится через `/admin/constants/` — как
+/// telegram-креды и прочие секреты проекта. Ни окружения, ни файлов.
+pub const CHAIN_CONSTANT: &str = "chain";
 
 /// Параметры подключения к сети и адреса контрактов.
-#[derive(Debug, Clone)]
+///
+/// Значение константы `chain` — объект:
+/// ```json
+/// {
+///   "mode": "live",
+///   "rpc": "https://testnet-rpc.monad.xyz",
+///   "chain_id": 10143,
+///   "usdc": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+///   "lock": "0x3CB2C5EA954C7711EfF621A784CD096E4E580be5",
+///   "observer_key": "0x..."
+/// }
+/// ```
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ChainConfig {
-    pub rpc_url: String,
+    /// `live` — работать с настоящей цепью, иначе mock.
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub rpc: String,
+    #[serde(default)]
     pub chain_id: u64,
     /// Адрес USDC (6 знаков).
+    #[serde(default)]
     pub usdc: String,
     /// Адрес EscrowLock.
-    pub escrow_lock: String,
+    #[serde(default)]
+    pub lock: String,
     /// Приватный ключ наблюдателя — им подписываются release/refund.
+    /// Нужен только процессу-наблюдателю.
+    #[serde(default)]
     pub observer_key: String,
 }
 
 impl ChainConfig {
-    /// Собирает настройки из окружения.
+    /// Достаёт настройки цепи из словаря констант.
+    ///
+    /// # Параметры
+    /// * `constants` — снимок таблицы `constants` (код → значение)
     ///
     /// # Возвращает
-    /// * `Ok(_)` — все обязательные переменные заданы
-    /// * `Err(_)` — чего-то не хватает, с указанием имени переменной
-    pub fn from_env() -> Result<Self, ChainError> {
-        Ok(Self {
-            rpc_url: require_env("MONAD_RPC")?,
-            chain_id: require_env("MONAD_CHAIN_ID")?
-                .parse()
-                .map_err(|_| ChainError::Config("MONAD_CHAIN_ID: ожидается число".into()))?,
-            usdc: require_env("USDC_ADDRESS")?,
-            escrow_lock: require_env("ESCROW_LOCK_ADDRESS")?,
-            observer_key: require_env("OBSERVER_PRIVATE_KEY")?,
-        })
+    /// * `Some(_)` — константа `chain` есть и разбирается
+    /// * `None` — константы нет или её формат не читается
+    pub fn from_constants(
+        constants: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Option<Self> {
+        let raw = constants.get(CHAIN_CONSTANT)?;
+        match serde_json::from_value::<Self>(raw.clone()) {
+            Ok(c) => Some(c),
+            Err(e) => {
+                tracing::warn!(error = %e, "константа `chain` не разбирается — работаем в mock");
+                None
+            }
+        }
     }
-}
 
-fn require_env(key: &str) -> Result<String, ChainError> {
-    std::env::var(key)
-        .map(|v| v.trim().to_string())
-        .ok()
-        .filter(|v| !v.is_empty())
-        .ok_or_else(|| ChainError::Config(format!("не задана переменная {key}")))
+    /// Режим по содержимому константы.
+    ///
+    /// Живой режим требует адрес замка: читать состояние и отдавать браузеру
+    /// параметры оплаты можно без ключей. Ключ проверяет только тот, кто
+    /// подписывает, — см. [`ChainConfig::require_observer_key`].
+    pub fn mode(&self) -> ChainMode {
+        let wants_live = self.mode.trim().eq_ignore_ascii_case("live");
+        if wants_live && !self.lock.trim().is_empty() {
+            ChainMode::Live
+        } else {
+            ChainMode::Mock
+        }
+    }
+
+    /// Проверяет, что есть всё для подписи транзакций наблюдателем.
+    pub fn require_observer_key(&self) -> Result<(), ChainError> {
+        if self.observer_key.trim().is_empty() {
+            return Err(ChainError::Config(
+                "в константе `chain` пуст observer_key — заполни через /admin/constants/".into(),
+            ));
+        }
+        if self.rpc.trim().is_empty() {
+            return Err(ChainError::Config("в константе `chain` пуст rpc".into()));
+        }
+        Ok(())
+    }
 }
 
 /// Состояние сделки в контракте — зеркало `enum State` из EscrowLock.sol.
