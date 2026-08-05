@@ -7,9 +7,11 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use escrownad::chain::core::ObserverChain;
+use escrownad::chain::types::{ChainMode, LockState};
 use escrownad::observer::{self, ResourceKind};
 use escrownad::{DbClient, sockets};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() {
@@ -34,8 +36,27 @@ async fn run() -> Result<()> {
         .context("wait database")?;
     info!(socket = sockets::DATABASE, "database ready");
 
+    // Живой режим включается только при полной конфигурации цепи;
+    // иначе продолжаем в mock, но говорим об этом в лог явно.
+    let chain = match ChainMode::from_env() {
+        ChainMode::Live => match ObserverChain::from_env() {
+            Ok(c) => {
+                match c.observer_address() {
+                    Ok(addr) => info!(observer = %addr, "цепь: живой режим"),
+                    Err(e) => return Err(anyhow::anyhow!("ключ наблюдателя: {e}")),
+                }
+                Some(c)
+            }
+            Err(e) => return Err(anyhow::anyhow!("настройки цепи: {e}")),
+        },
+        ChainMode::Mock => {
+            warn!("цепь: режим mock — выпуск денег не отправляется в сеть");
+            None
+        }
+    };
+
     loop {
-        match tick(&db).await {
+        match tick(&db, chain.as_ref()).await {
             Ok(n) => info!(matched = n, "observer tick done"),
             Err(e) => warn!(error = %e, "observer tick failed"),
         }
@@ -47,7 +68,7 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
-async fn tick(db: &DbClient) -> Result<u32> {
+async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
     // Open deals: funded / awaiting_proof (and listed for demo fixtures)
     let deals = db
         .list_deals_listed()
@@ -102,15 +123,47 @@ async fn tick(db: &DbClient) -> Result<u32> {
         };
         let key = observer::match_key(kind, t);
         info!(
-            id = deal.del_id,
+            deal = %deal.del_hash,
             prefix = %deal.prefix,
             key = %key,
-            "RIPE match — mock release"
+            "совпадение с реестром RIPE"
         );
+
+        let release_tx = match chain {
+            Some(chain) => {
+                // Не верим базе: деньги должны реально лежать в замке.
+                match chain.deal_state(&deal.del_hash).await {
+                    Ok((LockState::Funded, amount)) => {
+                        info!(deal = %deal.del_hash, %amount, "замок оплачен — выпускаю");
+                    }
+                    Ok((state, _)) => {
+                        warn!(
+                            deal = %deal.del_hash,
+                            state = state.as_str(),
+                            "в цепи не funded — выпуск пропущен"
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        error!(deal = %deal.del_hash, error = %e, "не прочитал состояние замка");
+                        continue;
+                    }
+                }
+                match chain.release(&deal.del_hash, &key).await {
+                    Ok(tx) => tx,
+                    Err(e) => {
+                        // статус сделки не меняем — попробуем на следующем круге
+                        error!(deal = %deal.del_hash, error = %e, "выпуск не прошёл");
+                        continue;
+                    }
+                }
+            }
+            None => escrownad::chain::mock_release_tx(&key),
+        };
+
         deal.del_status = "released".into();
         deal.ripe_match_key = Some(key.clone());
-        // CHAIN_MODE=mock (default): string tx. Live Monad EscrowLock later.
-        deal.release_tx = Some(escrownad::chain::mock_release_tx(&key));
+        deal.release_tx = Some(release_tx);
         db.save_deal(deal)
             .await
             .map_err(|e| anyhow::anyhow!("save deal: {e}"))?;

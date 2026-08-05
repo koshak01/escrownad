@@ -22,7 +22,8 @@ use escrownad::wallet_auth::{
 };
 use escrownad::ws_handlers::echo::EchoParams;
 use escrownad::ws_handlers::{
-    DealActionParams, DealSaveParams, DealSearchParams, DemoDeleteParams, DemoSaveParams,
+    DealActionParams, DealFundedParams, DealSaveParams, DealSearchParams, DemoDeleteParams,
+    DemoSaveParams,
 };
 use escrownad::{AppContext, DbClient, NotifierClient, init_app_context, sockets};
 // ──────────────────────────────────────────────────────────────────────────────
@@ -135,6 +136,9 @@ forge_admin::wsgate_handler_with_admin! {
         // Наборы «мои»/«арбитраж» без сессии просто пустые.
         async fn deals_search (&self, conn: &_, params: DealSearchParams) -> ActionResp
             | forge_ws::AuthRequirement::Public;
+        // Покупатель оплатил замок — сервер проверяет факт в цепи.
+        async fn deals_funded (&self, conn: &_, params: DealFundedParams) -> ActionResp
+            | forge_ws::AuthRequirement::Authenticated;
         // EVM wallet login (MetaMask / personal_sign). Public — anon flow.
         async fn wallet_challenge(&self, conn: &_, params: ChallengeParams) -> ChallengeResp
             | forge_ws::AuthRequirement::Public;
@@ -228,6 +232,9 @@ impl WsState {
     }
     async fn deals_search(&self, conn: &WsConn, p: DealSearchParams) -> Result<ActionResp, String> {
         escrownad::ws_handlers::deals_search(p, conn.usr_id()).await
+    }
+    async fn deals_funded(&self, conn: &WsConn, p: DealFundedParams) -> Result<ActionResp, String> {
+        escrownad::ws_handlers::deals_funded(p, conn.usr_id()).await
     }
     async fn wallet_challenge(
         &self,

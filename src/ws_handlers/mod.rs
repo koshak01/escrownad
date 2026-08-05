@@ -17,7 +17,8 @@ pub mod demos;
 pub mod echo;
 
 pub use deals::{
-    DealActionParams, DealSaveParams, DealSearchParams, deals_action, deals_save, deals_search,
+    DealActionParams, DealFundedParams, DealSaveParams, DealSearchParams, deals_action,
+    deals_funded, deals_save, deals_search,
 };
 pub use demos::{DemoDeleteParams, DemoSaveParams, demos_delete, demos_save};
 pub use echo::echo;

@@ -382,6 +382,80 @@ pub struct DealActionParams {
     pub buyer_wallet: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DealFundedParams {
+    pub hash: String,
+}
+
+/// Покупатель сообщает, что оплатил замок. Сервер проверяет это в цепи.
+///
+/// Клиенту не верим: статус `funded` ставится, только если контракт
+/// подтвердил, что деньги действительно лежат в замке под этой сделкой.
+/// Хэш транзакции от клиента вообще не принимаем — он ничего не доказывает.
+///
+/// # Параметры
+/// * `p` — хэш сделки
+/// * `actor_usr_id` — покупатель
+///
+/// # Возвращает
+/// * `ActionResp` — переход на карточку сделки
+pub async fn deals_funded(
+    p: DealFundedParams,
+    actor_usr_id: Option<i64>,
+) -> Result<ActionResp, String> {
+    let actor = require_actor(actor_usr_id)?;
+    let mut deal = app_context()
+        .db
+        .get_deal_by_hash(p.hash.clone())
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "deal not found".to_string())?;
+
+    let reader = crate::chain::core::ChainReader::from_env()
+        .ok_or_else(|| "on-chain settlement is not configured".to_string())?;
+    let (state, amount) = reader
+        .deal_state(&deal.del_hash)
+        .await
+        .map_err(|e| format!("chain read failed: {e}"))?;
+
+    if state != crate::chain::types::LockState::Funded {
+        return Err(format!(
+            "lock is not funded yet (on-chain state: {})",
+            state.as_str()
+        ));
+    }
+
+    let expected = crate::chain::core::usdc_units(deal.del_amount).map_err(|e| e.to_string())?;
+    if amount < expected {
+        return Err(format!(
+            "locked amount {amount} is less than the deal price {expected}"
+        ));
+    }
+
+    // покупатель становится известен только здесь — по факту оплаты
+    if deal.buyer_usr_id.is_none() {
+        deal.buyer_usr_id = Some(actor);
+        deal.buyer_wallet = app_context()
+            .db
+            .wallet_address_for_user(actor)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    deal.del_status = crate::models::deal::status::FUNDED.into();
+    deal.lock_tx = Some(crate::chain::deal_id_hex(&deal.del_hash));
+
+    app_context()
+        .db
+        .save_deal(deal.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(ActionResp::redirect_with_success(
+        &format!("/deals/{}/", p.hash),
+        "USDC locked on-chain",
+    ))
+}
+
 /// Authorize action by party role.
 /// - **offer** (sell): creator = seller; counterparty = buyer
 /// - **request** (buy demand): creator = buyer; counterparty = seller

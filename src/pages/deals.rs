@@ -308,6 +308,57 @@ impl Page for DealNewPage {
     }
 }
 
+/// Всё, что нужно кошельку покупателя, чтобы оплатить замок.
+#[derive(Debug, Serialize)]
+struct ChainParams {
+    chain_id: u64,
+    /// hex chain id для `wallet_switchEthereumChain`
+    chain_id_hex: String,
+    rpc_url: String,
+    usdc: String,
+    lock: String,
+    deal_id: String,
+    condition_hash: String,
+    seller: String,
+    /// Сумма в базовых единицах USDC, строкой — JS теряет точность на больших числах.
+    amount_units: String,
+    deadline: u64,
+}
+
+/// Собирает параметры оплаты. `None`, если цепь не настроена или сделке
+/// нечего оплачивать (нет продавца, суммы или срока).
+fn chain_params(deal: &Deal) -> Option<ChainParams> {
+    if !crate::chain::types::ChainMode::from_env().is_live() {
+        return None;
+    }
+    let seller = deal.seller_wallet.clone().filter(|s| !s.is_empty())?;
+    let amount = crate::chain::core::usdc_units(deal.del_amount).ok()?;
+    if amount.is_zero() {
+        return None;
+    }
+    let deadline = deal.deadline_ts.map(|d| d.raw()).filter(|d| *d > 0)? as u64;
+    let chain_id: u64 = std::env::var("MONAD_CHAIN_ID").ok()?.trim().parse().ok()?;
+
+    Some(ChainParams {
+        chain_id,
+        chain_id_hex: format!("0x{chain_id:x}"),
+        rpc_url: std::env::var("MONAD_RPC").ok()?,
+        usdc: std::env::var("USDC_ADDRESS").ok()?,
+        lock: std::env::var("ESCROW_LOCK_ADDRESS").ok()?,
+        deal_id: crate::chain::core::deal_id(&deal.del_hash).to_string(),
+        condition_hash: crate::chain::core::condition_hash(
+            &deal.prefix,
+            &deal.resource_kind,
+            deal.from_org.as_deref().unwrap_or(""),
+            deal.to_org.as_deref().unwrap_or(""),
+        )
+        .to_string(),
+        seller,
+        amount_units: amount.to_string(),
+        deadline,
+    })
+}
+
 pub struct DealShowPage;
 
 #[async_trait]
@@ -360,6 +411,14 @@ impl Page for DealShowPage {
         ctx.insert("deal_no", &deal.public_no());
         // цена уходит в шаблон сырым FixedN — форматирует фильтр, не f64
         ctx.insert("price_raw", &deal.del_amount.raw());
+
+        // Параметры для кошелька покупателя: approve + fund делает браузер.
+        // Суммы отдаём строкой — в JS числа больше 2^53 теряют точность.
+        let chain = chain_params(&deal);
+        ctx.insert("chain_ready", &chain.is_some());
+        if let Some(c) = chain {
+            ctx.insert("chain", &c);
+        }
         ctx.insert("created_at", &date_full(deal.del_dat));
         ctx.insert(
             "expires_at",

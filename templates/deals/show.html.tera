@@ -56,11 +56,29 @@
       {% endif %}
 
       {% if deal.del_status == "accepted" and is_buyer %}
-      <form class="deal-bar__form">
-        {{ <hidden name="hash" value={deal.del_hash} /> }}
-        {{ <hidden name="action" value="fund" /> }}
-        {{ <button label="Deposit USDC" type="submit" handler="deals_action" variant="primary" /> }}
-      </form>
+        {% if chain_ready %}
+        <button type="button" class="app-top__cta app-top__cta--solid"
+                data-escrow-pay
+                data-hash="{{ deal.del_hash }}"
+                data-chain-id="{{ chain.chain_id }}"
+                data-chain-id-hex="{{ chain.chain_id_hex }}"
+                data-rpc-url="{{ chain.rpc_url }}"
+                data-usdc="{{ chain.usdc }}"
+                data-lock="{{ chain.lock }}"
+                data-deal-id="{{ chain.deal_id }}"
+                data-condition-hash="{{ chain.condition_hash }}"
+                data-seller="{{ chain.seller }}"
+                data-amount-units="{{ chain.amount_units }}"
+                data-deadline="{{ chain.deadline }}">
+          Deposit {{ price_raw | fixed_n(scale=8) }} USDC
+        </button>
+        {% else %}
+        <form class="deal-bar__form">
+          {{ <hidden name="hash" value={deal.del_hash} /> }}
+          {{ <hidden name="action" value="fund" /> }}
+          {{ <button label="Deposit USDC (mock)" type="submit" handler="deals_action" variant="primary" /> }}
+        </form>
+        {% endif %}
       {% endif %}
 
       {% if deal.del_status == "funded" and is_seller %}
@@ -176,4 +194,9 @@
   <p class="app-hint muted">Connect your wallet to act on this lot.</p>
   {% endif %}
 </main>
+{% endblock %}
+
+{% block scripts_extra %}
+{{ super() }}
+<script type="module" src="/static/js/escrow.js?v={{ salt }}"></script>
 {% endblock %}

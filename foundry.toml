@@ -1,0 +1,20 @@
+# Foundry — сборка солидити-контрактов EscrowNad.
+#
+# ВАЖНО: `src` указывает на `contracts/`, а не на `src/` — в `src/` лежит
+# Rust-код приложения. Артефакты идут в `contracts/out` (в .gitignore).
+#
+# Команда сборки: `forge build` (это forge из Foundry, не наша кузница).
+
+[profile.default]
+src = "contracts"
+out = "contracts/out"
+libs = []
+cache_path = "contracts/cache"
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+
+[rpc_endpoints]
+monad_testnet = "https://testnet-rpc.monad.xyz"
+monad = "https://rpc.monad.xyz"

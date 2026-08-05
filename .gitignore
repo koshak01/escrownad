@@ -25,3 +25,8 @@ synapse-bridge.log
 .vscode/
 
 deploy/nginx/ssl/
+
+# Foundry (solidity)
+contracts/out/
+contracts/cache/
+broadcast/
