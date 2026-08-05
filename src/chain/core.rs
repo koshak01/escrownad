@@ -27,10 +27,13 @@ sol! {
             address seller,
             address buyer,
             uint256 amount,
+            uint256 fee,
             uint64 deadline,
             uint8 state,
             bytes32 conditionHash
         );
+        function quote(uint256 amount) external view returns (uint256 total, uint256 fee);
+        function feeBps() external view returns (uint16);
     }
 }
 

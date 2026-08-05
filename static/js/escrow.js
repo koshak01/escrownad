@@ -17,6 +17,7 @@ const SEL_ALLOWANCE = '0xdd62ed3e'; // allowance(address,address)
 const SEL_BALANCE = '0x70a08231'; // balanceOf(address)
 // Селекторы сверены через `cast sig` — на глаз их писать нельзя.
 const SEL_FUND = '0xfb998b39'; // fund(bytes32,address,uint256,uint64,bytes32)
+const SEL_QUOTE = '0xed1bd76c'; // quote(uint256) → (total, fee)
 
 const pad = (hexNo0x) => hexNo0x.padStart(64, '0');
 const addrArg = (addr) => pad(addr.toLowerCase().replace(/^0x/, ''));
@@ -123,33 +124,40 @@ async function payLock(btn) {
         await ensureNetwork(cfg);
         const buyer = await currentAccount();
 
-        // 1. хватает ли USDC
+        // 1. полную сумму спрашиваем у контракта: цена + комиссия площадки.
+        // Ставку не дублируем на клиенте — источник истины один, контракт.
+        const quoteHex = await ethCall(cfg.lock, SEL_QUOTE + uintArg(cfg.amount));
+        const body = (quoteHex || '').replace(/^0x/, '');
+        const total = BigInt('0x' + (body.slice(0, 64) || '0'));
+        if (total < cfg.amount) throw new Error('Cannot read the total from the contract');
+
+        // 2. хватает ли USDC на цену вместе с комиссией
         btn.textContent = 'Checking balance…';
         const balHex = await ethCall(cfg.usdc, SEL_BALANCE + addrArg(buyer));
         const balance = BigInt(balHex || '0x0');
-        if (balance < cfg.amount) {
-            const need = Number(cfg.amount) / 1e6;
+        if (balance < total) {
+            const need = Number(total) / 1e6;
             const have = Number(balance) / 1e6;
             throw new Error(`Not enough USDC: need ${need}, you have ${have}`);
         }
 
-        // 2. разрешение контракту списать нужную сумму
+        // 3. разрешение контракту списать полную сумму
         const allowHex = await ethCall(
             cfg.usdc,
             SEL_ALLOWANCE + addrArg(buyer) + addrArg(cfg.lock),
         );
-        if (BigInt(allowHex || '0x0') < cfg.amount) {
+        if (BigInt(allowHex || '0x0') < total) {
             btn.textContent = 'Approve in wallet…';
             const approveTx = await sendTx(
                 buyer,
                 cfg.usdc,
-                SEL_APPROVE + addrArg(cfg.lock) + uintArg(cfg.amount),
+                SEL_APPROVE + addrArg(cfg.lock) + uintArg(total),
             );
             btn.textContent = 'Waiting for approve…';
             await waitReceipt(approveTx);
         }
 
-        // 3. деньги в замок
+        // 4. деньги в замок
         btn.textContent = 'Confirm deposit…';
         const fundData = SEL_FUND
             + b32Arg(cfg.dealId)
@@ -161,7 +169,7 @@ async function payLock(btn) {
         btn.textContent = 'Locking USDC…';
         await waitReceipt(fundTx);
 
-        // 4. сервер сам сверяет факт с контрактом
+        // 5. сервер сам сверяет факт с контрактом
         btn.textContent = 'Confirming…';
         const resp = await ws.request('deals_funded', { hash: cfg.hash });
         ui.dispatch(resp);
