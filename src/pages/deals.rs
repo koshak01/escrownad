@@ -10,22 +10,8 @@ use crate::models::Deal;
 
 pub const OFFER_TYPES: &[&str] = &["ip", "domain", "property", "work", "other"];
 
-/// Статусы, по которым фильтруется доска (порядок = ход сделки).
-pub const BOARD_STATUSES: &[&str] = &[
-    "listed",
-    "requested",
-    "accepted",
-    "funded",
-    "preparing",
-    "prepared",
-    "awaiting_proof",
-    "released",
-    "refunded",
-    "dispute",
-];
-
 #[derive(Debug, Serialize)]
-struct OfferRow {
+pub struct OfferRow {
     /// Постоянный хэш — адрес карточки `/deals/<hash>/`.
     del_hash: String,
     /// Публичный номер лота `ddd-ddd` (id наружу не показываем).
@@ -34,7 +20,9 @@ struct OfferRow {
     listing_side: String,
     offer_type: String,
     description: String,
-    total_price: String,
+    /// Сырое значение FixedN<8> — форматируется фильтром в шаблоне.
+    /// Наружу цена не уезжает как f64: денежные значения только целые.
+    price_raw: i64,
     listed_at: String,
     listed_for: String,
     expires_at: String,
@@ -43,56 +31,85 @@ struct OfferRow {
     del_status: String,
 }
 
-/// Значения фильтра доски — приходят в query, возвращаются в шаблон,
-/// чтобы отрисовать выбранное состояние чипов.
+/// Набор сделок на доске.
+///
+/// - `all` — рынок: только активные предложения (`listed`, срок не вышел);
+/// - `mine` — созданные мной или где я сторона, в любом статусе;
+/// - `arbitration` — споры, где я сторона.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoardScope {
+    All,
+    Mine,
+    Arbitration,
+}
+
+impl BoardScope {
+    pub fn parse(raw: Option<&str>) -> Self {
+        match raw.map(str::trim).unwrap_or("") {
+            "mine" => Self::Mine,
+            "arbitration" => Self::Arbitration,
+            _ => Self::All,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Mine => "mine",
+            Self::Arbitration => "arbitration",
+        }
+    }
+
+    /// В своих наборах статус сделки виден — там он несёт смысл (стадия).
+    /// На общей доске все строки активные, колонка статуса бессмысленна.
+    fn shows_status(self) -> bool {
+        self != Self::All
+    }
+}
+
+/// Параметры выборки доски — одни и те же для страницы и для живого поиска.
 #[derive(Debug, Default, Serialize)]
-struct BoardFilter {
-    side: String,
-    asset_type: String,
-    status: String,
-    query: String,
+pub struct BoardFilter {
+    pub side: String,
+    pub query: String,
+    pub scope: String,
 }
 
 impl BoardFilter {
     /// Собирает фильтр из query-параметров страницы.
     fn from_query(ctx: &RequestContext) -> Self {
-        let get = |key: &str| {
-            ctx.query
-                .get(key)
-                .map(|s| s.trim().to_ascii_lowercase())
-                .filter(|s| !s.is_empty() && s != "all")
-                .unwrap_or_default()
-        };
+        let side = ctx
+            .query
+            .get("side")
+            .map(|s| s.trim().to_ascii_lowercase())
+            .filter(|s| s == "offer" || s == "request")
+            .unwrap_or_default();
         Self {
-            side: get("side"),
-            asset_type: get("type"),
-            status: get("status"),
+            side,
             query: ctx
                 .query
                 .get("q")
                 .map(|s| s.trim().to_string())
                 .unwrap_or_default(),
+            scope: BoardScope::parse(ctx.query.get("scope").map(|s| s.as_str()))
+                .as_str()
+                .to_string(),
         }
     }
 
-    /// Строка подходит под фильтр.
+    /// Строка подходит под фильтр (сторона + текстовый поиск).
     fn matches(&self, deal: &Deal) -> bool {
         if !self.side.is_empty() && deal.listing_side != self.side {
-            return false;
-        }
-        if !self.asset_type.is_empty() && deal.asset_type != self.asset_type {
-            return false;
-        }
-        if !self.status.is_empty() && deal.del_status != self.status {
             return false;
         }
         if !self.query.is_empty() {
             let needle = self.query.to_lowercase();
             let haystack = format!(
-                "{} {} {}",
+                "{} {} {} {}",
                 deal.prefix,
-                deal.del_title.as_deref().unwrap_or(""),
-                deal.from_org.as_deref().unwrap_or("")
+                crate::sanitize::plain_text(deal.del_title.as_deref().unwrap_or("")),
+                deal.from_org.as_deref().unwrap_or(""),
+                deal.to_org.as_deref().unwrap_or("")
             )
             .to_lowercase();
             if !haystack.contains(&needle) {
@@ -103,26 +120,51 @@ impl BoardFilter {
     }
 }
 
-fn format_usdc(raw: i64) -> String {
-    let scale = 100_000_000i64;
-    let neg = raw < 0;
-    let a = raw.unsigned_abs() as i128;
-    let whole = a / scale as i128;
-    let frac = a % scale as i128;
-    let s = if frac == 0 {
-        format!("{whole}")
-    } else {
-        let mut f = format!("{frac:08}");
-        while f.ends_with('0') {
-            f.pop();
-        }
-        format!("{whole}.{f}")
-    };
-    if neg {
-        format!("-{s}")
-    } else {
-        s
+/// Сделка входит в выбранный набор.
+fn in_scope(deal: &Deal, scope: BoardScope, actor: Option<i64>) -> bool {
+    let is_party = actor.is_some() && (deal.seller_usr_id == actor || deal.buyer_usr_id == actor);
+    match scope {
+        // Рынок: только живые предложения. Черновики, сделки в работе и
+        // завершённые на общей доске не висят.
+        BoardScope::All => deal.del_status == "listed" && !deal.is_expired(),
+        BoardScope::Mine => is_party,
+        BoardScope::Arbitration => is_party && deal.del_status == "dispute",
     }
+}
+
+/// Собирает строки доски — общий путь для страницы и для живого поиска.
+///
+/// # Параметры
+/// * `filter` — сторона и строка поиска
+/// * `scope` — какой набор показывать
+/// * `actor` — текущий пользователь (для «моих» и «арбитража»)
+///
+/// # Возвращает
+/// * `(строки, всего в наборе)`
+pub async fn board_rows(
+    filter: &BoardFilter,
+    scope: BoardScope,
+    actor: Option<i64>,
+) -> Result<(Vec<OfferRow>, usize), String> {
+    let deals = app_context()
+        .db
+        .list_deals_board()
+        .await
+        .map_err(|e| format!("list_deals_board: {e}"))?;
+    let verified_users = app_context()
+        .db
+        .list_verified_sellers()
+        .await
+        .unwrap_or_default();
+
+    let scoped: Vec<&Deal> = deals.iter().filter(|d| in_scope(d, scope, actor)).collect();
+    let total = scoped.len();
+    let rows = scoped
+        .into_iter()
+        .filter(|d| filter.matches(d))
+        .map(|d| to_offer_row(d, &verified_users))
+        .collect();
+    Ok((rows, total))
 }
 
 fn listed_for(from: Timestamp) -> String {
@@ -198,7 +240,7 @@ fn to_offer_row(d: &Deal, verified_users: &[i64]) -> OfferRow {
         },
         offer_type: d.asset_type.clone(),
         description: description(d),
-        total_price: format_usdc(d.del_amount.raw()),
+        price_raw: d.del_amount.raw(),
         listed_at: date_short(d.del_dat),
         listed_for: listed_for(d.del_dat),
         expires_at: d.deadline_ts.map(date_short).unwrap_or_else(|| "—".into()),
@@ -219,41 +261,20 @@ impl Page for DealsListPage {
     }
     async fn load(&self, ctx: &mut RequestContext) -> WsResult<()> {
         let filter = BoardFilter::from_query(ctx);
+        let scope = BoardScope::parse(Some(filter.scope.as_str()));
+        let actor = ctx.user.as_ref().map(|u| u.usr_id);
 
-        let deals = app_context()
-            .db
-            .list_deals_board()
+        let (rows, total) = board_rows(&filter, scope, actor)
             .await
-            .map_err(|e| WsError::PageLoad(format!("list_deals_board: {e}")))?;
-
-        // Verified party = completed released deal as seller or buyer
-        let verified_users = app_context()
-            .db
-            .list_verified_sellers()
-            .await
-            .unwrap_or_default();
-
-        let visible: Vec<&Deal> = deals
-            .iter()
-            .filter(|d| !matches!(d.del_status.as_str(), "draft" | "verified"))
-            // просроченные предложения с доски уходят — рынок не держит
-            // вечные заявки
-            .filter(|d| !(d.del_status == "listed" && d.is_expired()))
-            .collect();
-        let total = visible.len();
-
-        let rows: Vec<OfferRow> = visible
-            .into_iter()
-            .filter(|d| filter.matches(d))
-            .map(|d| to_offer_row(d, &verified_users))
-            .collect();
+            .map_err(WsError::PageLoad)?;
 
         ctx.insert("shown", &rows.len());
         ctx.insert("total", &total);
         ctx.insert("deals", &rows);
         ctx.insert("filter", &filter);
-        ctx.insert("offer_types", &OFFER_TYPES);
-        ctx.insert("statuses", &BOARD_STATUSES);
+        ctx.insert("scope", &scope.as_str());
+        ctx.insert("show_status", &scope.shows_status());
+        ctx.insert("logged_in", &actor.is_some());
         Ok(())
     }
 }
@@ -337,7 +358,8 @@ impl Page for DealShowPage {
         };
 
         ctx.insert("deal_no", &deal.public_no());
-        ctx.insert("price", &format_usdc(deal.del_amount.raw()));
+        // цена уходит в шаблон сырым FixedN — форматирует фильтр, не f64
+        ctx.insert("price_raw", &deal.del_amount.raw());
         ctx.insert("created_at", &date_full(deal.del_dat));
         ctx.insert(
             "expires_at",

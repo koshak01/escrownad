@@ -5,37 +5,35 @@
 {% block content %}
 <main class="app-main">
 
-  {# ── filter: plain GET form, no JS needed ─────────────────────────── #}
-  <form class="board-filter" method="get" action="/deals/">
-    <div class="board-filter__group">
-      <span class="board-filter__label">Side</span>
-      <a class="fchip{% if filter.side == '' %} is-on{% endif %}"
-         href="/deals/{% if filter.asset_type %}?type={{ filter.asset_type }}{% endif %}">All</a>
-      <a class="fchip{% if filter.side == 'offer' %} is-on{% endif %}" href="/deals/?side=offer">Offer</a>
-      <a class="fchip{% if filter.side == 'request' %} is-on{% endif %}" href="/deals/?side=request">Request</a>
+  <div class="board-bar" data-board data-scope="{{ scope }}">
+    {# набор: рынок / мои / споры #}
+    <div class="board-bar__group">
+      <a class="fchip{% if scope == 'all' %} is-on{% endif %}" href="/deals/">Offers</a>
+      <a class="fchip{% if scope == 'mine' %} is-on{% endif %}" href="/deals/?scope=mine">Mine</a>
+      <a class="fchip{% if scope == 'arbitration' %} is-on{% endif %}" href="/deals/?scope=arbitration">Arbitration</a>
     </div>
 
-    <div class="board-filter__group">
-      <span class="board-filter__label">Status</span>
-      <a class="fchip{% if filter.status == '' %} is-on{% endif %}" href="/deals/">All</a>
-      {% for s in statuses %}
-      <a class="fchip{% if filter.status == s %} is-on{% endif %}" href="/deals/?status={{ s }}">{{ s }}</a>
-      {% endfor %}
+    {# сторона сделки #}
+    <div class="board-bar__group">
+      <button type="button" class="fchip{% if filter.side == '' %} is-on{% endif %}" data-side="">All</button>
+      <button type="button" class="fchip{% if filter.side == 'offer' %} is-on{% endif %}" data-side="offer">Offer</button>
+      <button type="button" class="fchip{% if filter.side == 'request' %} is-on{% endif %}" data-side="request">Request</button>
     </div>
 
-    <div class="board-filter__group board-filter__group--search">
-      <input class="board-filter__input" type="search" name="q" value="{{ filter.query }}"
+    {# живой поиск: без кнопки, таблица приходит с сервера по мере набора #}
+    <div class="board-bar__search">
+      <span class="ico ico--search" aria-hidden="true"></span>
+      <input class="board-bar__input" type="search" data-board-search
+             value="{{ filter.query }}" autocomplete="off"
              placeholder="network, description, geo…">
-      <button class="board-filter__submit" type="submit">
-        <span class="ico ico--search" aria-hidden="true"></span> Search
-      </button>
-      {% if filter.query or filter.side or filter.status %}
-      <a class="board-filter__reset" href="/deals/">Reset</a>
-      {% endif %}
     </div>
 
-    <span class="board-filter__count">{{ shown }} / {{ total }}</span>
-  </form>
+    <span class="board-bar__count" data-board-count>{{ shown }} / {{ total }}</span>
+  </div>
+
+  {% if scope != "all" and not logged_in %}
+  <p class="app-hint muted">Connect your wallet to see this list.</p>
+  {% endif %}
 
   <div class="data-table-wrap">
     <table class="data-table">
@@ -48,46 +46,16 @@
           <th>Price</th>
           <th>Listed</th>
           <th>Valid until</th>
-          <th>✓</th>
-          <th>Status</th>
+          {% if show_status %}<th>Status</th>{% endif %}
         </tr>
       </thead>
-      <tbody>
-        {% if deals | length == 0 %}
-        <tr>
-          <td colspan="9" class="data-table__empty">No listings match.</td>
-        </tr>
-        {% else %}
-        {% for d in deals %}
-        <tr class="data-table__row" onclick="location.href='/deals/{{ d.del_hash }}/'">
-          <td class="num deal-no">{{ d.deal_no }}</td>
-          <td>
-            {% if d.listing_side == "request" %}
-              <span class="side side--request">request</span>
-            {% else %}
-              <span class="side side--offer">offer</span>
-            {% endif %}
-          </td>
-          <td><code>{{ d.offer_type }}</code></td>
-          <td class="desc">{{ d.description }}</td>
-          <td class="num"><strong>{{ d.total_price }}</strong></td>
-          <td class="num" title="{{ d.listed_at }}">{{ d.listed_at }} <span class="dim">· {{ d.listed_for }}</span></td>
-          <td class="num">{{ d.expires_at }}</td>
-          <td>
-            {% if d.party_verified %}
-              <span class="badge-ok" title="Verified">
-                <span class="ico ico--check ico--sm" aria-hidden="true"></span>
-              </span>
-            {% else %}
-              <span class="muted">—</span>
-            {% endif %}
-          </td>
-          <td><span class="status status--{{ d.del_status }}">{{ d.del_status }}</span></td>
-        </tr>
-        {% endfor %}
-        {% endif %}
-      </tbody>
+      {% include "deals/_rows.html.tera" %}
     </table>
   </div>
 </main>
+{% endblock %}
+
+{% block scripts_extra %}
+{{ super() }}
+<script type="module" src="/static/js/board.js?v={{ salt }}"></script>
 {% endblock %}

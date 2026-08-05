@@ -2,11 +2,118 @@
 //!
 //! **Authz:** every mutation checks seller/buyer party (IDOR-safe).
 
-use forge_ws::ActionResp;
-use serde::Deserialize;
+use forge_ws::{ActionResp, HtmlReplace};
+use serde::{Deserialize, Serialize};
 
 use crate::app_context;
 use crate::models::Deal;
+use crate::pages::deals::{BoardFilter, BoardScope, board_rows};
+
+#[derive(Debug, Deserialize)]
+pub struct DealSearchParams {
+    #[serde(default)]
+    pub q: Option<String>,
+    /// all | mine | arbitration
+    #[serde(default)]
+    pub scope: Option<String>,
+    /// offer | request | пусто = обе
+    #[serde(default)]
+    pub side: Option<String>,
+}
+
+#[derive(Serialize)]
+struct RowsView {
+    deals: Vec<crate::pages::deals::OfferRow>,
+    show_status: bool,
+    shown: usize,
+    total: usize,
+}
+
+/// Живой поиск по доске: сервер отдаёт готовые строки таблицы.
+///
+/// Клиент шлёт запрос на каждый ввод символа, сервер рендерит партиал и
+/// возвращает его для замены `#board-rows` + новый адрес для истории.
+/// Никаких кнопок «Найти» — таблица обновляется по мере набора.
+///
+/// # Параметры
+/// * `p` — строка поиска, набор и сторона
+/// * `actor_usr_id` — текущий пользователь (для «моих» и «арбитража»)
+///
+/// # Возвращает
+/// * `ActionResp` — замена строк таблицы и счётчика + push_url
+pub async fn deals_search(
+    p: DealSearchParams,
+    actor_usr_id: Option<i64>,
+) -> Result<ActionResp, String> {
+    let scope = BoardScope::parse(p.scope.as_deref());
+    let side = p
+        .side
+        .as_deref()
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .filter(|s| s == "offer" || s == "request")
+        .unwrap_or_default();
+    let query = p.q.as_deref().map(str::trim).unwrap_or("").to_string();
+
+    let filter = BoardFilter {
+        side: side.clone(),
+        query: query.clone(),
+        scope: scope.as_str().to_string(),
+    };
+    let (rows, total) = board_rows(&filter, scope, actor_usr_id).await?;
+
+    let view = RowsView {
+        shown: rows.len(),
+        total,
+        show_status: scope != BoardScope::All,
+        deals: rows,
+    };
+    let html = {
+        let renderer = app_context().renderer.read().await;
+        renderer
+            .render_partial("deals/_rows.html.tera", &view)
+            .map_err(|e| format!("render rows: {e}"))?
+    };
+
+    // адрес синхронизируем, чтобы отфильтрованную доску можно было переслать
+    let mut params: Vec<String> = Vec::new();
+    if scope != BoardScope::All {
+        params.push(format!("scope={}", scope.as_str()));
+    }
+    if !side.is_empty() {
+        params.push(format!("side={side}"));
+    }
+    if !query.is_empty() {
+        params.push(format!("q={}", urlencode(&query)));
+    }
+    let push_url = if params.is_empty() {
+        "/deals/".to_string()
+    } else {
+        format!("/deals/?{}", params.join("&"))
+    };
+
+    let mut resp = ActionResp::replace(vec![HtmlReplace {
+        selector: "#board-rows".into(),
+        html,
+    }]);
+    resp.push_url = push_url;
+    Ok(resp)
+}
+
+/// Минимальное percent-кодирование для строки поиска в адресе.
+fn urlencode(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    for b in raw.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            b' ' => out.push('+'),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
 
 #[derive(Debug, Deserialize)]
 pub struct DealSaveParams {

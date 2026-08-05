@@ -4,140 +4,176 @@
 
 {% block content %}
 <main class="app-main">
-  <p class="muted"><a href="/deals/">← Offers</a></p>
 
-  <header class="deal-hero">
-    <div class="deal-hero__line">
+  {# ── панель: назад · номер лота · действия ───────────────────────── #}
+  <div class="deal-bar">
+    <a class="deal-bar__back" href="/deals/">
+      <span aria-hidden="true">←</span> Offers
+    </a>
+
+    <div class="deal-bar__id">
       <span class="deal-no">{{ deal_no }}</span>
-      <span class="status status--{{ deal.del_status }}">{{ deal.del_status }}</span>
       {% if deal.listing_side == "request" %}
         <span class="side side--request">request</span>
       {% else %}
         <span class="side side--offer">offer</span>
       {% endif %}
+      <span class="status status--{{ deal.del_status }}">{{ deal.del_status }}</span>
       {% if is_expired %}<span class="status status--expired">expired</span>{% endif %}
     </div>
-    <div class="deal-hero__body rich">{{ deal.del_title | default(value="—") | safe }}</div>
-  </header>
 
+    <div class="deal-bar__actions">
+      {% if is_creator and (deal.del_status == "draft" or deal.del_status == "verified") %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="publish" /> }}
+        {{ <button label="Publish" type="submit" handler="deals_action" variant="primary" /> }}
+      </form>
+      {% endif %}
+
+      {% if deal.del_status == "listed" and not is_creator and not is_expired %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="request" /> }}
+        {% if deal.listing_side == "request" %}
+        {{ <button label="I can sell" type="submit" handler="deals_action" variant="primary" /> }}
+        {% else %}
+        {{ <button label="I want to buy" type="submit" handler="deals_action" variant="primary" /> }}
+        {% endif %}
+      </form>
+      {% endif %}
+
+      {% if deal.del_status == "requested" and is_creator %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="accept" /> }}
+        {% if deal.listing_side == "request" %}
+        {{ <button label="Accept seller" type="submit" handler="deals_action" variant="primary" /> }}
+        {% else %}
+        {{ <button label="Accept buyer" type="submit" handler="deals_action" variant="primary" /> }}
+        {% endif %}
+      </form>
+      {% endif %}
+
+      {% if deal.del_status == "accepted" and is_buyer %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="fund" /> }}
+        {{ <button label="Deposit USDC" type="submit" handler="deals_action" variant="primary" /> }}
+      </form>
+      {% endif %}
+
+      {% if deal.del_status == "funded" and is_seller %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="start_prepare" /> }}
+        {{ <button label="Start preparation" type="submit" handler="deals_action" variant="primary" /> }}
+      </form>
+      {% endif %}
+
+      {% if deal.del_status == "preparing" and is_seller %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="mark_prepared" /> }}
+        {{ <button label="Mark ready" type="submit" handler="deals_action" variant="primary" /> }}
+      </form>
+      {% endif %}
+
+      {% if deal.del_status == "prepared" and is_party %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="confirm_intent" /> }}
+        {{ <button label="Confirm intent" type="submit" handler="deals_action" variant="primary" /> }}
+      </form>
+      {% endif %}
+
+      {% if is_party and deal.del_status != "released" and deal.del_status != "refunded" and deal.del_status != "cancelled" %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="cancel" /> }}
+        {{ <button label="Cancel" type="submit" handler="deals_action" /> }}
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── плитки ──────────────────────────────────────────────────────── #}
+  <div class="deal-grid">
+
+    <section class="tile tile--price">
+      <span class="tile__label">Price</span>
+      <span class="tile__value tile__value--xl">{{ price_raw | money(scale=8, dp=2) | safe }}</span>
+      <span class="tile__unit">USDC</span>
+    </section>
+
+    <section class="tile">
+      <span class="tile__label">Resource</span>
+      <span class="tile__value mono">{{ deal.prefix }}</span>
+      <span class="tile__sub">{{ deal.asset_type | upper }}{% if deal.resource_kind %} · {{ deal.resource_kind }}{% endif %}</span>
+    </section>
+
+    <section class="tile">
+      <span class="tile__label">Transfer</span>
+      <span class="tile__value">{{ deal.from_org | default(value="—") }}</span>
+      <span class="tile__sub">→ {{ deal.to_org | default(value="—") }}</span>
+    </section>
+
+    <section class="tile">
+      <span class="tile__label">Timing</span>
+      <span class="tile__value mono">{{ created_at }}</span>
+      <span class="tile__sub">valid until {{ expires_at }}</span>
+    </section>
+  </div>
+
+  {# ── описание ────────────────────────────────────────────────────── #}
   <section class="card">
-    <dl class="ds-dl deal-dl">
-      <dt>Lot</dt><dd class="num">{{ deal_no }}</dd>
-      <dt>Type</dt><dd><code>{{ deal.asset_type }}</code></dd>
-      <dt>Resource</dt><dd><code>{{ deal.prefix }}</code>{% if deal.resource_kind %} · <code>{{ deal.resource_kind }}</code>{% endif %}</dd>
-      <dt>From → To</dt><dd>{{ deal.from_org | default(value="—") }} → {{ deal.to_org | default(value="—") }}</dd>
-      <dt>Price</dt><dd class="num">{{ price }} USDC</dd>
-      <dt>Created</dt><dd class="num">{{ created_at }}</dd>
-      <dt>Valid until</dt><dd class="num">{{ expires_at }}</dd>
-      <dt>Seller</dt>
-      <dd>
-        <code>{{ deal.seller_wallet | default(value="—") }}</code>
-        {% if seller_verified %}<span class="badge-ok">✓</span>{% endif %}
-      </dd>
-      <dt>Buyer</dt><dd><code>{{ deal.buyer_wallet | default(value="—") }}</code></dd>
-      <dt>Lock tx</dt><dd><code>{{ deal.lock_tx | default(value="—") }}</code></dd>
-      <dt>Release tx</dt><dd><code>{{ deal.release_tx | default(value="—") }}</code></dd>
-    </dl>
+    <h2 class="card__title">Description</h2>
+    <div class="rich">{{ deal.del_title | default(value="—") | safe }}</div>
   </section>
 
   {% if deal.del_note %}
   <section class="card">
-    <h2>Terms</h2>
+    <h2 class="card__title">Terms</h2>
     <div class="rich">{{ deal.del_note | safe }}</div>
   </section>
   {% endif %}
 
-  <section class="card deal-actions">
-    <h2>Actions</h2>
+  {# ── стороны и цепь ──────────────────────────────────────────────── #}
+  <div class="deal-grid deal-grid--wide">
+    <section class="card">
+      <h2 class="card__title">Parties</h2>
+      <div class="party">
+        <span class="party__role">Seller</span>
+        <code class="party__addr">{{ deal.seller_wallet | default(value="—") }}</code>
+        {% if seller_verified %}<span class="badge-ok" title="Completed deal before">✓</span>{% endif %}
+      </div>
+      <div class="party">
+        <span class="party__role">Buyer</span>
+        <code class="party__addr">{{ deal.buyer_wallet | default(value="—") }}</code>
+      </div>
+    </section>
 
-    {% if is_creator and (deal.del_status == "draft" or deal.del_status == "verified") %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="publish" /> }}
-      {{ <button label="Verify &amp; publish" type="submit" handler="deals_action" variant="primary" /> }}
-    </form>
-    {% endif %}
-
-    {% if deal.del_status == "listed" and not is_creator and not is_expired %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="request" /> }}
-      {% if deal.listing_side == "request" %}
-      {{ <button label="I can sell" type="submit" handler="deals_action" variant="primary" /> }}
-      {% else %}
-      {{ <button label="I want to buy" type="submit" handler="deals_action" variant="primary" /> }}
+    <section class="card">
+      <h2 class="card__title">On-chain</h2>
+      <div class="party">
+        <span class="party__role">Lock</span>
+        <code class="party__addr">{{ deal.lock_tx | default(value="—") }}</code>
+      </div>
+      <div class="party">
+        <span class="party__role">Release</span>
+        <code class="party__addr">{{ deal.release_tx | default(value="—") }}</code>
+      </div>
+      {% if deal.del_status == "awaiting_proof" %}
+      <p class="muted tile__sub">Waiting for the RIPE fact. USDC stays locked until it matches.</p>
+      {% elif deal.del_status == "released" %}
+      <p class="muted tile__sub">Released — USDC paid to the seller.</p>
       {% endif %}
-    </form>
-    {% endif %}
+      <p class="muted tile__sub"><a href="/oracle/">How does the oracle work?</a></p>
+    </section>
+  </div>
 
-    {% if deal.del_status == "requested" and is_creator %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="accept" /> }}
-      {% if deal.listing_side == "request" %}
-      {{ <button label="Accept seller" type="submit" handler="deals_action" variant="primary" /> }}
-      {% else %}
-      {{ <button label="Accept buyer" type="submit" handler="deals_action" variant="primary" /> }}
-      {% endif %}
-    </form>
-    {% endif %}
-
-    {% if deal.del_status == "accepted" and is_buyer %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="fund" /> }}
-      {{ <button label="Deposit USDC (mock)" type="submit" handler="deals_action" variant="primary" /> }}
-    </form>
-    <p class="muted">Buyer: deposit settlement USDC into the on-chain lock.</p>
-    {% endif %}
-
-    {% if deal.del_status == "funded" and is_seller %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="start_prepare" /> }}
-      {{ <button label="Start preparation" type="submit" handler="deals_action" variant="primary" /> }}
-    </form>
-    <p class="muted">Seller: begin transfer preparation (RIPE / registry work).</p>
-    {% endif %}
-
-    {% if deal.del_status == "preparing" and is_seller %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="mark_prepared" /> }}
-      {{ <button label="Mark ready ✓" type="submit" handler="deals_action" variant="primary" /> }}
-    </form>
-    {% endif %}
-
-    {% if deal.del_status == "prepared" and is_party %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="confirm_intent" /> }}
-      {{ <button label="Confirm intent" type="submit" handler="deals_action" variant="primary" /> }}
-    </form>
-    <p class="muted">Both parties confirm. Then wait for RIPE oracle fact → release to seller.</p>
-    {% endif %}
-
-    {% if deal.del_status == "awaiting_proof" %}
-    <p class="muted">Waiting for RIPE proof (observer). USDC stays locked until fact match.</p>
-    {% endif %}
-
-    {% if deal.del_status == "released" %}
-    <p class="status status--released">Released — USDC paid to seller.</p>
-    {% endif %}
-
-    {% if is_party and deal.del_status != "released" and deal.del_status != "refunded" and deal.del_status != "cancelled" %}
-    <form class="ds-dialog__form">
-      {{ <hidden name="hash" value={deal.del_hash} /> }}
-      {{ <hidden name="action" value="cancel" /> }}
-      {{ <button label="Cancel / refund" type="submit" handler="deals_action" /> }}
-    </form>
-    {% endif %}
-
-    {% if not usr_id %}
-    <p class="muted">Connect your wallet to act on this lot.</p>
-    {% endif %}
-
-    <p class="muted"><a href="/oracle/">How does the oracle work?</a></p>
-  </section>
+  {% if not usr_id %}
+  <p class="app-hint muted">Connect your wallet to act on this lot.</p>
+  {% endif %}
 </main>
 {% endblock %}

@@ -1,0 +1,30 @@
+{# Строки доски. Рендерится и страницей, и живым поиском (deals_search):
+   сервер отдаёт готовый HTML, JS только подставляет его в #board-rows. #}
+<tbody id="board-rows" data-shown="{{ shown }}" data-total="{{ total }}">
+  {% if deals | length == 0 %}
+  <tr>
+    <td colspan="{% if show_status %}8{% else %}7{% endif %}" class="data-table__empty">Nothing here.</td>
+  </tr>
+  {% else %}
+  {% for d in deals %}
+  <tr class="data-table__row" onclick="location.href='/deals/{{ d.del_hash }}/'">
+    <td class="num deal-no">{{ d.deal_no }}</td>
+    <td>
+      {% if d.listing_side == "request" %}
+        <span class="side side--request">request</span>
+      {% else %}
+        <span class="side side--offer">offer</span>
+      {% endif %}
+    </td>
+    <td><code>{{ d.offer_type }}</code></td>
+    <td class="desc">{{ d.description }}</td>
+    <td class="num price">{{ d.price_raw | money(scale=8, dp=2) | safe }} <span class="dim">USDC</span></td>
+    <td class="num">{{ d.listed_at }} <span class="dim">· {{ d.listed_for }}</span></td>
+    <td class="num">{{ d.expires_at }}</td>
+    {% if show_status %}
+    <td><span class="status status--{{ d.del_status }}">{{ d.del_status }}</span></td>
+    {% endif %}
+  </tr>
+  {% endfor %}
+  {% endif %}
+</tbody>
