@@ -29,9 +29,10 @@ pub enum ChainMode {
 impl ChainMode {
     /// Читает режим из окружения (`CHAIN_MODE=live|mock`).
     ///
-    /// Живой режим включается только явно и только когда заданы адрес
-    /// контракта и ключ наблюдателя — иначе тихо остаёмся в mock, чтобы
-    /// сервис не падал при неполной конфигурации.
+    /// Живой режим требует только адрес контракта: читать состояние замка и
+    /// отдавать браузеру параметры оплаты можно без всяких ключей. Приватный
+    /// ключ нужен единственному процессу — наблюдателю, и его наличие
+    /// проверяет [`ChainConfig::from_env`], а не этот метод.
     pub fn from_env() -> Self {
         let requested = std::env::var("CHAIN_MODE")
             .map(|v| v.trim().eq_ignore_ascii_case("live"))
@@ -39,16 +40,10 @@ impl ChainMode {
         if !requested {
             return Self::Mock;
         }
-        let has_lock = env_non_empty("ESCROW_LOCK_ADDRESS");
-        let has_key = env_non_empty("OBSERVER_PRIVATE_KEY");
-        if has_lock && has_key {
+        if env_non_empty("ESCROW_LOCK_ADDRESS") {
             Self::Live
         } else {
-            tracing::warn!(
-                has_lock,
-                has_key,
-                "CHAIN_MODE=live, но нет адреса контракта или ключа наблюдателя — работаем в mock"
-            );
+            tracing::warn!("CHAIN_MODE=live, но не задан ESCROW_LOCK_ADDRESS — работаем в mock");
             Self::Mock
         }
     }

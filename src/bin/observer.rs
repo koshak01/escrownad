@@ -38,16 +38,25 @@ async fn run() -> Result<()> {
 
     // Живой режим включается только при полной конфигурации цепи;
     // иначе продолжаем в mock, но говорим об этом в лог явно.
+    // Наблюдателю, в отличие от остальных бинарников, нужен приватный ключ.
+    // Нет ключа — не падаем, а работаем в mock и говорим об этом громко:
+    // сервис должен пережить неполную конфигурацию, а не уйти в крашлуп.
     let chain = match ChainMode::from_env() {
         ChainMode::Live => match ObserverChain::from_env() {
-            Ok(c) => {
-                match c.observer_address() {
-                    Ok(addr) => info!(observer = %addr, "цепь: живой режим"),
-                    Err(e) => return Err(anyhow::anyhow!("ключ наблюдателя: {e}")),
+            Ok(c) => match c.observer_address() {
+                Ok(addr) => {
+                    info!(observer = %addr, "цепь: живой режим");
+                    Some(c)
                 }
-                Some(c)
+                Err(e) => {
+                    warn!(error = %e, "ключ наблюдателя не разбирается — работаю в mock");
+                    None
+                }
+            },
+            Err(e) => {
+                warn!(error = %e, "цепь настроена не полностью — работаю в mock");
+                None
             }
-            Err(e) => return Err(anyhow::anyhow!("настройки цепи: {e}")),
         },
         ChainMode::Mock => {
             warn!("цепь: режим mock — выпуск денег не отправляется в сеть");
