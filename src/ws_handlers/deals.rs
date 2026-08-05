@@ -52,6 +52,29 @@ pub struct DealSaveParams {
     pub size: Option<String>,
     #[serde(default)]
     pub is_public: Option<bool>,
+    /// Срок действия листинга, `YYYY-MM-DD` из `<date>`. Пусто → +31 день.
+    #[serde(default)]
+    pub deadline: Option<String>,
+}
+
+/// Разбирает дату из формы в конец указанных суток.
+///
+/// # Параметры
+/// * `raw` — строка `YYYY-MM-DD` из компонента `<date>`
+///
+/// # Возвращает
+/// * `Ok(Some(_))` — дата разобрана · `Ok(None)` — поле пустое ·
+///   `Err(_)` — формат не распознан
+fn parse_deadline(raw: Option<&str>) -> Result<Option<forge_core::Timestamp>, String> {
+    let Some(text) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    let date = chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d")
+        .map_err(|_| format!("bad date format: {text} (expected YYYY-MM-DD)"))?;
+    let end_of_day = date
+        .and_hms_opt(23, 59, 59)
+        .ok_or_else(|| "bad date".to_string())?;
+    Ok(Some(forge_core::Timestamp::from_dt(end_of_day)))
 }
 
 fn require_actor(actor: Option<i64>) -> Result<i64, String> {
@@ -119,11 +142,15 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         }
     };
 
+    // wysiwyg отдаёт HTML — чистим по белому списку, иначе его нельзя выводить
     if let Some(v) = p.del_title {
-        deal.del_title = Some(v);
+        deal.del_title = crate::sanitize::rich_text(&v);
     }
     if let Some(v) = p.del_note {
-        deal.del_note = Some(v);
+        deal.del_note = crate::sanitize::rich_text(&v);
+    }
+    if let Some(ts) = parse_deadline(p.deadline.as_deref())? {
+        deal.deadline_ts = Some(ts);
     }
     if let Some(v) = p.asset_type {
         let t = v.trim().to_ascii_lowercase();
@@ -214,13 +241,16 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         deal.apply_action("publish", Some(actor), None)?;
     }
 
+    // хэш нужен до отправки: по нему строится адрес карточки
+    deal.assign_hash();
+    let hash = deal.del_hash.clone();
+
     app_context()
         .db
         .save_deal(deal.clone())
         .await
         .map_err(|e| e.to_string())?;
 
-    let id = deal.del_id;
     let msg = if publish {
         if deal.listing_side == "request" {
             "Request published"
@@ -231,14 +261,15 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         "Listing saved"
     };
     Ok(ActionResp::redirect_with_success(
-        &format!("/deals/{id}/"),
+        &format!("/deals/{hash}/"),
         msg,
     ))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DealActionParams {
-    pub id: i64,
+    /// Постоянный хэш сделки — публичный идентификатор вместо id.
+    pub hash: String,
     pub action: String,
     #[serde(default)]
     pub buyer_wallet: Option<String>,
@@ -309,7 +340,7 @@ pub async fn deals_action(
     let actor = require_actor(actor_usr_id)?;
     let mut deal = app_context()
         .db
-        .get_deal(p.id)
+        .get_deal_by_hash(p.hash.clone())
         .await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "deal not found".to_string())?;
@@ -360,7 +391,7 @@ pub async fn deals_action(
     };
 
     Ok(ActionResp::redirect_with_success(
-        &format!("/deals/{}/", p.id),
+        &format!("/deals/{}/", p.hash),
         msg,
     ))
 }

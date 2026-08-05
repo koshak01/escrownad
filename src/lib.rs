@@ -17,6 +17,7 @@ pub mod chain;
 pub mod models;
 pub mod observer;
 pub mod pages;
+pub mod sanitize;
 pub mod wallet_auth;
 pub mod ws_handlers;
 
@@ -155,6 +156,10 @@ pub enum DbCommand {
     GetDeal {
         id: i64,
     },
+    /// Публичный доступ к сделке — по постоянному хэшу, не по id.
+    GetDealByHash {
+        hash: String,
+    },
     SaveDeal {
         data: models::Deal,
     },
@@ -267,6 +272,8 @@ forge_ipc::client! {
             -> Vec<models::Deal>
             = ListDealsFiltered { filter, sort } -> Deals(v) = v;
         pub fn get_deal(id: i64) -> Option<models::Deal> = GetDeal { id } -> Deal(v) = v;
+        pub fn get_deal_by_hash(hash: String) -> Option<models::Deal>
+            = GetDealByHash { hash } -> Deal(v) = v;
         pub fn save_deal(data: models::Deal) = SaveDeal { data } -> Ok;
 
         /// Find-or-create user by EVM wallet address (lowercase 0x…).

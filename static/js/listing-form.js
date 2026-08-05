@@ -42,8 +42,28 @@ function bindListingForm(form) {
     }
 }
 
+// Core date-picker.js инициализирует flatpickr с русской локалью (общий канон
+// forge). Продукт EN-only — переинициализируем поле даты на английскую.
+// Формат Y-m-d остаётся тем же: сервер парсит YYYY-MM-DD.
+function englishDatePickers(root) {
+    if (typeof window.flatpickr === 'undefined') return;
+    root.querySelectorAll('input[data-flatpickr]').forEach(el => {
+        if (el.dataset.enLocale) return;
+        el.dataset.enLocale = '1';
+        if (el._flatpickr) el._flatpickr.destroy();
+        window.flatpickr(el, {
+            locale: 'default',
+            dateFormat: 'Y-m-d',
+            allowInput: true,
+        });
+    });
+}
+
 function initAll() {
-    document.querySelectorAll('[data-listing-form]').forEach(bindListingForm);
+    document.querySelectorAll('[data-listing-form]').forEach(form => {
+        bindListingForm(form);
+        englishDatePickers(form);
+    });
 }
 
 if (document.readyState === 'loading') {

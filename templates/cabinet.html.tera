@@ -26,12 +26,12 @@
   {% else %}
   <div class="offer-grid">
     {% for d in deals %}
-    <a class="offer-card" href="/deals/{{ d.del_id }}/">
+    <a class="offer-card" href="/deals/{{ d.del_hash }}/">
       <div class="offer-card__top">
         <span class="status status--{{ d.del_status }}">{{ d.del_status }}</span>
         <code>{{ d.resource_kind }}</code>
       </div>
-      <h2 class="offer-card__title">{{ d.del_title | default(value="Untitled") }}</h2>
+      <h2 class="offer-card__title rich">{{ d.del_title | default(value="Untitled") | safe }}</h2>
       <p class="offer-card__prefix"><code>{{ d.prefix }}</code></p>
     </a>
     {% endfor %}

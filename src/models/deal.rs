@@ -86,8 +86,62 @@ pub struct DealListFilter {
     pub asset_type: Option<String>,
 }
 
+/// Срок действия листинга по умолчанию — дней от публикации.
+pub const DEFAULT_LISTING_DAYS: i64 = 31;
+
+/// Публичный номер лота `ddd-ddd` — производная от `del_hash`.
+///
+/// Наружу (URL, таблица, карточка) уходят только хэш и этот номер;
+/// `del_id` не показывается нигде.
+///
+/// # Параметры
+/// * `del_hash` — hex-хэш сделки
+///
+/// # Возвращает
+/// * `String` — номер вида `472-118`
+pub fn public_no(del_hash: &str) -> String {
+    let head = del_hash.get(..6).unwrap_or("000000");
+    let n = u32::from_str_radix(head, 16).unwrap_or(0) % 1_000_000;
+    format!("{:03}-{:03}", n / 1000, n % 1000)
+}
+
 impl Deal {
-    pub async fn save(&mut self, pool: &PgPool) -> forge_db::sqlx::Result<i64> {
+    /// Публичный номер лота — см. [`public_no`].
+    pub fn public_no(&self) -> String {
+        public_no(&self.del_hash)
+    }
+
+    /// Срок действия истёк (для листингов на доске).
+    pub fn is_expired(&self) -> bool {
+        self.deadline_ts
+            .map(|d| d.raw() <= Timestamp::now().raw())
+            .unwrap_or(false)
+    }
+
+    /// Проставляет срок действия по умолчанию, если создатель его не задал.
+    ///
+    /// Вызывается при выходе лота на доску (`list` / `publish`), чтобы на
+    /// рынке не висели бессрочные предложения.
+    fn ensure_deadline(&mut self) {
+        if self.deadline_ts.is_none() {
+            let secs = DEFAULT_LISTING_DAYS * 86_400;
+            self.deadline_ts = Some(Timestamp(Timestamp::now().raw() + secs));
+        }
+    }
+
+    /// Присваивает постоянный хэш сделки — идемпотентно.
+    ///
+    /// Хэш это публичный идентификатор: по нему строится адрес
+    /// `/deals/<hash>/` и номер лота. Считается ОДИН раз при создании и
+    /// дальше не меняется — иначе ссылка протухала бы при каждой смене
+    /// сторон (появился `buyer_wallet` — новый хэш — 404 по старому адресу).
+    ///
+    /// Вызывается в ws-хендлере до отправки в database (чтобы знать, куда
+    /// редиректить) и в [`Deal::save`] как страховка для остальных путей.
+    pub fn assign_hash(&mut self) {
+        if !self.del_hash.is_empty() {
+            return;
+        }
         let key = format!(
             "{}|{}|{}|{}|{}|{}",
             self.listing_side,
@@ -95,9 +149,13 @@ impl Deal {
             self.resource_kind,
             self.prefix,
             self.seller_wallet.as_deref().unwrap_or(""),
-            self.buyer_wallet.as_deref().unwrap_or("")
+            forge_core::time::now_millis()
         );
         self.del_hash = sha256_hex(key.as_bytes());
+    }
+
+    pub async fn save(&mut self, pool: &PgPool) -> forge_db::sqlx::Result<i64> {
+        self.assign_hash();
         if self.chain_id.is_empty() {
             self.chain_id = "monad".into();
         }
@@ -169,6 +227,7 @@ impl Deal {
                 if self.asset_type == "ip" && !self.soft_verified {
                     return Err("IP lot needs soft_verify first".into());
                 }
+                self.ensure_deadline();
                 self.del_status = LISTED.into();
             }
             "request" => {
@@ -234,6 +293,7 @@ impl Deal {
                     return Err("publish only from draft/verified".into());
                 }
                 self.soft_verified = true;
+                self.ensure_deadline();
                 self.del_status = LISTED.into();
             }
             "open_dispute" => {

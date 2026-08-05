@@ -310,7 +310,7 @@ body.app-shell .foot:not(.app-foot) {
   letter-spacing: 0.03em;
   text-transform: lowercase;
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: 0;
 }
 .side--offer {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -336,7 +336,7 @@ html.light .side--request {
   font-weight: 600;
   color: #1a7a45;
   background: color-mix(in srgb, #3dff9a 18%, transparent);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 2px 6px;
   min-width: 1.4rem;
 }
@@ -348,12 +348,20 @@ html.light .badge-ok {
 .status {
   display: inline-block;
   padding: 0.12em 0.5em;
-  border-radius: 999px;
+  border-radius: 0;
   font-size: 0.78em;
   font-weight: 600;
   background: var(--line);
   color: var(--fg);
   text-transform: lowercase;
+}
+.status--expired {
+  background: #3d2a1a;
+  color: #ffc48a;
+}
+html.light .status--expired {
+  background: #fff0e0;
+  color: #8a4a0d;
 }
 .status--listed { background: var(--violet-deep, #2a1848); color: var(--lavender, #ddd7fe); }
 .status--funded,
@@ -377,10 +385,13 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 12px 10px;
-  max-width: 720px;
+  /* формы занимают всю ширину экрана — не колонка на пол-окна */
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
 }
 .app-form--listing {
-  max-width: 760px;
+  max-width: none;
 }
 .app-form__title {
   margin: 0 0 6px;
@@ -528,6 +539,172 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
 }
 .deal-actions form {
   margin-bottom: 8px;
+}
+
+/* ── listing form: multi-column, no endless ribbon ─────────────────── */
+.listing-rest,
+.listing-ip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 0 22px;
+  align-items: start;
+}
+/* заголовки секций, IP-блок, широкие контролы и кнопки — во всю ширину */
+.listing-rest > .app-form__section,
+.listing-rest > .app-form__section-hint,
+.listing-rest > .listing-ip,
+.listing-rest > .app-ctl--wide,
+.listing-rest > .app-ctl--actions,
+.listing-ip > .app-form__section,
+.listing-ip > .app-form__section-hint {
+  grid-column: 1 / -1;
+}
+/* верхние шаги (side/type) тоже на всю ширину — они над сеткой */
+.app-form--listing > form > .app-ctl {
+  max-width: none;
+}
+.app-ctl__hint {
+  max-width: 46rem;
+}
+
+/* ── board filter ──────────────────────────────────────────────────── */
+.board-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.board-filter__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.board-filter__group--search {
+  flex: 1;
+  min-width: 260px;
+}
+.board-filter__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.fchip {
+  display: inline-block;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  color: var(--muted);
+  background: transparent;
+  white-space: nowrap;
+}
+.fchip:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+.fchip.is-on {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.board-filter__input {
+  flex: 1;
+  min-width: 160px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+}
+.board-filter__submit {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.board-filter__submit:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.board-filter__reset {
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--muted);
+}
+.board-filter__count {
+  margin-left: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── deal card ─────────────────────────────────────────────────────── */
+.deal-hero {
+  margin-bottom: 12px;
+}
+.deal-hero__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.deal-hero__body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.deal-no {
+  font-family: ui-monospace, monospace;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+td.deal-no {
+  font-size: 12px;
+  font-weight: 600;
+}
+/* размеченный текст из редактора */
+.rich > :first-child { margin-top: 0; }
+.rich > :last-child { margin-bottom: 0; }
+.rich p { margin: 0 0 0.5em; line-height: 1.5; }
+.rich ul,
+.rich ol { margin: 0 0 0.5em; padding-left: 1.3em; }
+.rich blockquote {
+  margin: 0 0 0.5em;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+.rich a { color: var(--accent); }
+.deal-dl .num {
+  font-family: ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.data-table .dim {
+  opacity: 0.6;
 }
 
 /* landing keeps its own chrome */

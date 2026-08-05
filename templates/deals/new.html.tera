@@ -127,7 +127,7 @@
         <p class="app-form__section">What people will read</p>
         <p class="app-form__section-hint">Text, price, files. Same for every type.</p>
 
-        <div class="app-ctl">
+        <div class="app-ctl app-ctl--wide">
           {{ <wysiwyg name="del_title" label="9. Description" height={180} /> }}
           <p class="app-ctl__hint">
             Explain the deal in normal language: what it is, why it is good.
@@ -145,15 +145,25 @@
         </div>
 
         <div class="app-ctl">
-          {{ <wysiwyg name="del_note" label="11. Terms" height={160} /> }}
+          {{ <date name="deadline" label="11. Valid until" value={default_deadline}
+                   placeholder="YYYY-MM-DD" /> }}
+          <p class="app-ctl__hint">
+            Last day this listing stays on the market. After that it drops off the board
+            automatically. Default is <strong>31 days</strong> from today — change it if you
+            need a shorter window.
+          </p>
+        </div>
+
+        <div class="app-ctl app-ctl--wide">
+          {{ <wysiwyg name="del_note" label="12. Terms" height={160} /> }}
           <p class="app-ctl__hint">
             Rules of the deal: who pays fees, deadlines, what happens if proof fails.
             If nothing special — write <em>Standard escrow terms</em>.
           </p>
         </div>
 
-        <div class="app-ctl">
-          {{ <file_upload name="attachments" label="12. Files (optional)" multiple={true}
+        <div class="app-ctl app-ctl--wide">
+          {{ <file_upload name="attachments" label="13. Files (optional)" multiple={true}
                           hint="Drop files here or click to choose"
                           accept=".pdf,.zip,.png,.jpg,.jpeg,.txt" /> }}
           <p class="app-ctl__hint">

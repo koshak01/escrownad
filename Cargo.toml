@@ -55,6 +55,10 @@ tracing     = "0.1"
 async-trait = "0.1"
 reqwest     = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
+# Санация HTML из wysiwyg перед записью в БД (белый список тегов).
+# Без неё описание лота нельзя выводить через `| safe` — это был бы XSS.
+ammonia     = "4"
+
 # EVM wallet login (MetaMask personal_sign → ecrecover)
 k256  = { version = "0.13", features = ["ecdsa"] }
 sha3  = "0.10"

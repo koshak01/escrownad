@@ -130,6 +130,12 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                     .map_err(|e| e.to_string())?;
                 Ok(DbResponse::Deal(deal))
             }
+            DbCommand::GetDealByHash { hash } => {
+                let deal = escrownad::models::Deal::find_by_hash(&self.pool, &hash)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(DbResponse::Deal(deal))
+            }
             DbCommand::SaveDeal { mut data } => {
                 data.save(&self.pool).await.map_err(|e| e.to_string())?;
                 Ok(DbResponse::Ok)
