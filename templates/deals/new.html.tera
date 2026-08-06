@@ -94,13 +94,13 @@
           </div>
 
           <div class="app-ctl">
-            {{ <field name="from_org" type="text" label="6. Your organisation in the registry"
-                       placeholder="e.g. Call Center Poland S.A" required={true}
-                       error_required="type the organisation name as it appears in the registry" /> }}
+            {{ <field name="from_org" type="text" label="6. Your organisation (optional)"
+                       placeholder="e.g. Call Center Poland S.A" /> }}
             <p class="app-ctl__hint">
-              The legal name that currently holds this block in the registry — exactly as written
-              there. The oracle looks for this name in the public transfer table, so a typo means
-              no automatic release. Copy it from your registry record.
+              The legal name holding this block in the registry. <strong>Optional.</strong>
+              The oracle watches the network itself and waits for a new transfer record to
+              appear for it — it does not depend on you typing the name right. Fill this in
+              only if you want buyers to see who they are dealing with.
             </p>
           </div>
 

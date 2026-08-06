@@ -75,30 +75,74 @@ pub async fn fetch_transfers(kind: ResourceKind) -> Result<Vec<RipeTransfer>, St
     Ok(payload.transfers)
 }
 
-/// Match deal against a transfer row.
-/// - prefix must appear in original_block or transferred_blocks
-/// - if from_org / to_org set on deal, require case-insensitive contains
+/// Дата строки реестра. В таблицах RIPE формат `05/08/2026`.
+pub fn transfer_date(t: &RipeTransfer) -> Option<chrono::NaiveDate> {
+    chrono::NaiveDate::parse_from_str(t.date.trim(), "%d/%m/%Y").ok()
+}
+
+/// Сеть из строки реестра совпадает с искомой.
+///
+/// Сравнение по границам, а не подстрокой: иначе `10.1.1.0` совпал бы
+/// с `110.1.1.0`, и деньги ушли бы по чужому переходу.
+fn block_matches(prefix: &str, t: &RipeTransfer) -> bool {
+    let needle = prefix.trim();
+    if needle.is_empty() {
+        return false;
+    }
+    let listed = |field: &str| {
+        field
+            .split(|c: char| c == ',' || c == ';' || c.is_whitespace())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .any(|block| block.eq_ignore_ascii_case(needle))
+    };
+    listed(&t.original_block) || listed(&t.transferred_blocks)
+}
+
+/// Строка реестра подтверждает переход по нашей сделке.
+///
+/// Оракул садится на конкретную сеть и ждёт, когда по ней появится
+/// **новая** запись:
+///
+/// 1. сеть совпадает точно (по границам, не подстрокой);
+/// 2. запись датирована **не раньше** появления сделки — иначе засчитали бы
+///    старый чужой переход, случившийся до того, как лот вообще возник;
+/// 3. организации, если заданы, служат дополнительной проверкой — но
+///    продавец их не обязан вписывать: кто кому передал, мы узнаём из самой
+///    найденной строки.
+///
+/// # Параметры
+/// * `prefix` — сеть сделки
+/// * `since` — день, раньше которого переход нам не подходит
+/// * `from_org` / `to_org` — необязательное уточнение сторон
+/// * `t` — строка таблицы трансферов
+///
+/// # Возвращает
+/// * `true` — это наш переход
 pub fn match_deal(
     prefix: &str,
+    since: Option<chrono::NaiveDate>,
     from_org: Option<&str>,
     to_org: Option<&str>,
     t: &RipeTransfer,
 ) -> bool {
-    let p = prefix.trim();
-    if p.is_empty() {
+    if !block_matches(prefix, t) {
         return false;
     }
-    let block_ok = t.original_block.contains(p) || t.transferred_blocks.contains(p);
-    if !block_ok {
-        return false;
+    if let Some(since) = since {
+        match transfer_date(t) {
+            Some(d) if d >= since => {}
+            // дата не разобралась или переход старше сделки — не наш случай
+            _ => return false,
+        }
     }
-    if let Some(f) = from_org.filter(|s| !s.is_empty()) {
-        if !t.from.to_lowercase().contains(&f.to_lowercase()) {
+    if let Some(f) = from_org.filter(|s| !s.trim().is_empty()) {
+        if !t.from.to_lowercase().contains(&f.trim().to_lowercase()) {
             return false;
         }
     }
-    if let Some(to) = to_org.filter(|s| !s.is_empty()) {
-        if !t.to.to_lowercase().contains(&to.to_lowercase()) {
+    if let Some(to) = to_org.filter(|s| !s.trim().is_empty()) {
+        if !t.to.to_lowercase().contains(&to.trim().to_lowercase()) {
             return false;
         }
     }

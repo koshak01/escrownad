@@ -137,9 +137,13 @@ async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
             ResourceKind::Pi => &pi,
             ResourceKind::Pa => &pa,
         };
+        // Переход, случившийся до появления сделки, нам не годится:
+        // оракул ждёт НОВУЮ запись по этой сети.
+        let since = Some(deal.del_dat.to_dt().date());
         let hit = table.iter().find(|t| {
             observer::match_deal(
                 &deal.prefix,
+                since,
                 deal.from_org.as_deref(),
                 deal.to_org.as_deref(),
                 t,

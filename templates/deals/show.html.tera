@@ -127,9 +127,10 @@
 
     <section class="tile">
       <span class="tile__label">Resource</span>
-      <span class="tile__value mono">{{ deal.prefix }}</span>
+      <span class="tile__value mono">{{ shown_prefix }}</span>
       <span class="tile__sub">
         {% if addresses %}{{ addresses }} addresses · {% endif %}{{ deal.resource_kind }} · {{ deal.rir }}
+        {% if not may_see_prefix %}<br><span class="tile__locked">exact network opens after you fund the deal</span>{% endif %}
       </span>
     </section>
 

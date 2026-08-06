@@ -926,3 +926,9 @@ td.deal-no {
   font-size: 11px;
   color: var(--muted);
 }
+.tile__locked {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--accent);
+}

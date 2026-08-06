@@ -102,18 +102,22 @@ impl BoardFilter {
     }
 
     /// Строка подходит под фильтр (сторона + текстовый поиск).
-    fn matches(&self, deal: &Deal) -> bool {
+    ///
+    /// `may_search_prefix` — искать ли по самой сети. Анониму нельзя:
+    /// скрытую сеть иначе можно подобрать перебором через строку поиска.
+    fn matches(&self, deal: &Deal, may_search_prefix: bool) -> bool {
         if !self.side.is_empty() && deal.listing_side != self.side {
             return false;
         }
         if !self.query.is_empty() {
             let needle = self.query.to_lowercase();
             let haystack = format!(
-                "{} {} {} {}",
-                deal.prefix,
+                "{} {} {} {} {}",
+                if may_search_prefix { deal.prefix.as_str() } else { "" },
                 crate::sanitize::plain_text(deal.del_title.as_deref().unwrap_or("")),
-                deal.from_org.as_deref().unwrap_or(""),
-                deal.to_org.as_deref().unwrap_or("")
+                deal.geo.as_deref().unwrap_or(""),
+                deal.rir,
+                deal.from_org.as_deref().unwrap_or("")
             )
             .to_lowercase();
             if !haystack.contains(&needle) {
@@ -165,7 +169,7 @@ pub async fn board_rows(
     let total = scoped.len();
     let rows = scoped
         .into_iter()
-        .filter(|d| filter.matches(d))
+        .filter(|d| filter.matches(d, actor.is_some()))
         .map(|d| to_offer_row(d, &verified_users))
         .collect();
     Ok((rows, total))
@@ -464,6 +468,17 @@ impl Page for DealShowPage {
 
         ctx.insert("deal_no", &deal.public_no());
         ctx.insert("addresses", &crate::models::deal::address_count(&deal.prefix));
+        // Сеть — это и есть товар: до оплаты наружу уходит только размер.
+        let may_see_prefix = deal.may_see_prefix(actor);
+        ctx.insert("may_see_prefix", &may_see_prefix);
+        ctx.insert(
+            "shown_prefix",
+            &if may_see_prefix {
+                deal.prefix.clone()
+            } else {
+                crate::models::deal::masked_prefix(&deal.prefix)
+            },
+        );
         ctx.insert(
             "oracle_auto",
             &(deal.rir == crate::models::deal::RIR_WITH_ORACLE),

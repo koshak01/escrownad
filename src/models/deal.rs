@@ -37,41 +37,77 @@ pub struct Deal {
     pub del_note: Option<String>,
 
     /// Offer type: ip | domain | property | work | other (drives type-specific fields later).
+    #[db(rename = "del_asset_type")]
+    #[sqlx(rename = "del_asset_type")]
     pub asset_type: String,
     /// PA | PI (when asset_type = ip)
+    #[db(rename = "del_resource_kind")]
+    #[sqlx(rename = "del_resource_kind")]
     pub resource_kind: String,
+    #[db(rename = "del_prefix")]
+    #[sqlx(rename = "del_prefix")]
     pub prefix: String,
 
     /// `offer` = sell listing · `request` = buy demand (exchange).
+    #[db(rename = "del_listing_side")]
+    #[sqlx(rename = "del_listing_side")]
     pub listing_side: String,
     /// Организация-владелец в реестре — по ней оракул ищет строку перехода.
+    #[db(rename = "del_from_org")]
+    #[sqlx(rename = "del_from_org")]
     pub from_org: Option<String>,
     /// Организация-получатель. На публикации обычно пуста: покупатель
     /// известен только после оплаты.
+    #[db(rename = "del_to_org")]
+    #[sqlx(rename = "del_to_org")]
     pub to_org: Option<String>,
     /// Региональный реестр: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
     /// Автопроверка фактов сейчас есть только для RIPE.
+    #[db(rename = "del_rir")]
+    #[sqlx(rename = "del_rir")]
     pub rir: String,
     /// Гео блока — витрина, в поиске факта не участвует.
+    #[db(rename = "del_geo")]
+    #[sqlx(rename = "del_geo")]
     pub geo: Option<String>,
 
+    #[db(rename = "del_seller_wallet")]
+    #[sqlx(rename = "del_seller_wallet")]
     pub seller_wallet: Option<String>,
+    #[db(rename = "del_buyer_wallet")]
+    #[sqlx(rename = "del_buyer_wallet")]
     pub buyer_wallet: Option<String>,
     pub seller_usr_id: Option<i64>,
     pub buyer_usr_id: Option<i64>,
     pub broker_usr_id: Option<i64>,
 
     pub del_amount: FixedN<8>,
+    #[db(rename = "del_chain_id")]
+    #[sqlx(rename = "del_chain_id")]
     pub chain_id: String,
+    #[db(rename = "del_lock_tx")]
+    #[sqlx(rename = "del_lock_tx")]
     pub lock_tx: Option<String>,
+    #[db(rename = "del_release_tx")]
+    #[sqlx(rename = "del_release_tx")]
     pub release_tx: Option<String>,
 
     pub del_status: String,
+    #[db(rename = "del_deadline_ts")]
+    #[sqlx(rename = "del_deadline_ts")]
     pub deadline_ts: Option<Timestamp>,
+    #[db(rename = "del_ripe_match_key")]
+    #[sqlx(rename = "del_ripe_match_key")]
     pub ripe_match_key: Option<String>,
+    #[db(rename = "del_checklist_json")]
+    #[sqlx(rename = "del_checklist_json")]
     pub checklist_json: Option<String>,
 
+    #[db(rename = "del_soft_verified")]
+    #[sqlx(rename = "del_soft_verified")]
     pub soft_verified: bool,
+    #[db(rename = "del_contact_email")]
+    #[sqlx(rename = "del_contact_email")]
     pub contact_email: Option<String>,
 
     pub del_is_enable: bool,
@@ -84,13 +120,13 @@ pub struct Deal {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ListFilter)]
 #[list_filter(model = Deal)]
 pub struct DealListFilter {
-    #[filter(text, col = "prefix", label = "Prefix")]
+    #[filter(text, col = "del_prefix", label = "Prefix")]
     pub prefix: Option<String>,
     #[filter(text, col = "del_status", label = "Status")]
     pub status: Option<String>,
-    #[filter(text, col = "resource_kind", label = "Kind")]
+    #[filter(text, col = "del_resource_kind", label = "Kind")]
     pub kind: Option<String>,
-    #[filter(text, col = "asset_type", label = "Asset")]
+    #[filter(text, col = "del_asset_type", label = "Asset")]
     pub asset_type: Option<String>,
 }
 
@@ -107,6 +143,24 @@ pub const RIRS: &[&str] = &["RIPE", "ARIN", "APNIC", "LACNIC", "AFRINIC"];
 
 /// Реестр, для которого работает автопроверка фактов.
 pub const RIR_WITH_ORACLE: &str = "RIPE";
+
+/// Префикс без самого адреса сети — то, что видно до оплаты.
+///
+/// Точная сеть это и есть предмет сделки: зная её, покупатель может
+/// проверить блок и уйти к владельцу мимо площадки. Поэтому наружу отдаём
+/// только размер, а адрес открывается тому, кто внёс деньги.
+///
+/// # Параметры
+/// * `prefix` — сеть в виде `194.246.124.0/23`
+///
+/// # Возвращает
+/// * `String` — например `•••.•••.•••.• /23`
+pub fn masked_prefix(prefix: &str) -> String {
+    match prefix.rsplit_once('/') {
+        Some((_, bits)) => format!("•••.•••.•••.•/{}", bits.trim()),
+        None => "•••.•••.•••.•".to_string(),
+    }
+}
 
 /// Сколько адресов в блоке по его записи CIDR.
 ///
@@ -146,6 +200,41 @@ impl Deal {
     /// Публичный номер лота — см. [`public_no`].
     pub fn public_no(&self) -> String {
         public_no(&self.del_hash)
+    }
+
+    /// Кому можно показать точную сеть.
+    ///
+    /// Видят только создатель листинга и покупатель, внёсший деньги.
+    /// Всем остальным — маска: сеть открывается за депозит, а не за просмотр.
+    ///
+    /// # Параметры
+    /// * `actor` — текущий пользователь, если вошёл
+    ///
+    /// # Возвращает
+    /// * `true` — можно показать `prefix` целиком
+    pub fn may_see_prefix(&self, actor: Option<i64>) -> bool {
+        if actor.is_none() {
+            return false;
+        }
+        let creator = if self.listing_side == "request" {
+            self.buyer_usr_id
+        } else {
+            self.seller_usr_id
+        };
+        actor == creator || (actor == self.buyer_usr_id && self.is_paid())
+    }
+
+    /// Деньги за сделку уже в замке (или дальше по пути).
+    pub fn is_paid(&self) -> bool {
+        matches!(
+            self.del_status.as_str(),
+            status::FUNDED
+                | status::PREPARING
+                | status::PREPARED
+                | status::AWAITING_PROOF
+                | status::RELEASED
+                | status::DISPUTE
+        )
     }
 
     /// Срок действия истёк (для листингов на доске).
