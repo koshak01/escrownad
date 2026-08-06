@@ -3,7 +3,7 @@
 <tbody id="board-rows" data-shown="{{ shown }}" data-total="{{ total }}">
   {% if deals | length == 0 %}
   <tr>
-    <td colspan="{% if show_status %}8{% else %}7{% endif %}" class="data-table__empty">Nothing here.</td>
+    <td colspan="{% if show_status %}9{% else %}8{% endif %}" class="data-table__empty">Nothing here.</td>
   </tr>
   {% else %}
   {% for d in deals %}
@@ -16,7 +16,8 @@
         <span class="side side--offer">offer</span>
       {% endif %}
     </td>
-    <td><code>{{ d.offer_type }}</code></td>
+    <td><code>{{ d.offer_type }}</code>{% if d.rir %} <span class="dim">{{ d.rir }}</span>{% endif %}</td>
+    <td class="num">{% if d.addresses %}{{ d.addresses }}{% else %}—{% endif %}</td>
     <td class="desc">{{ d.description }}</td>
     <td class="num price">{{ d.price_raw | money(scale=8, dp=2) | safe }} <span class="dim">USDC</span></td>
     <td class="num">{{ d.listed_at }} <span class="dim">· {{ d.listed_for }}</span></td>

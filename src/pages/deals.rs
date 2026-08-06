@@ -19,6 +19,10 @@ pub struct OfferRow {
     /// offer | request
     listing_side: String,
     offer_type: String,
+    /// Реестр: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
+    rir: String,
+    /// Сколько адресов в блоке — покупатель смотрит на это, а не на маску.
+    addresses: Option<u64>,
     description: String,
     /// Сырое значение FixedN<8> — форматируется фильтром в шаблоне.
     /// Наружу цена не уезжает как f64: денежные значения только целые.
@@ -239,6 +243,8 @@ fn to_offer_row(d: &Deal, verified_users: &[i64]) -> OfferRow {
             d.listing_side.clone()
         },
         offer_type: d.asset_type.clone(),
+        rir: d.rir.clone(),
+        addresses: crate::models::deal::address_count(&d.prefix),
         description: description(d),
         price_raw: d.del_amount.raw(),
         listed_at: date_short(d.del_dat),
@@ -457,6 +463,11 @@ impl Page for DealShowPage {
         };
 
         ctx.insert("deal_no", &deal.public_no());
+        ctx.insert("addresses", &crate::models::deal::address_count(&deal.prefix));
+        ctx.insert(
+            "oracle_auto",
+            &(deal.rir == crate::models::deal::RIR_WITH_ORACLE),
+        );
         // цена уходит в шаблон сырым FixedN — форматирует фильтр, не f64
         ctx.insert("price_raw", &deal.del_amount.raw());
 

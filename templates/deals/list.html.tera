@@ -50,6 +50,7 @@
           <th>Lot</th>
           <th>Side</th>
           <th>Type</th>
+          <th>Addresses</th>
           <th>Description</th>
           <th>Price</th>
           <th>Listed</th>

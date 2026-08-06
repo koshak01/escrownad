@@ -73,23 +73,39 @@
             {{ <field name="geo" type="text" label="4. Geo" placeholder="e.g. Germany, EU, US-East" /> }}
             <p class="app-ctl__hint">
               Where this IP is used or registered. Country or region in plain words. Example: <em>Germany</em>.
+              This is for buyers to read — it is not used to verify the transfer.
             </p>
           </div>
 
           <div class="app-ctl">
-            {% <chips name="operator" label="5. Registry" selected="RIPE" data_type="string" required={true}> %}
-              {{ <chip value="RIPE" label="RIPE" selected={true} /> }}
-              {{ <chip value="ASN" label="ASN" /> }}
+            {% <chips name="rir" label="5. Registry" selected="RIPE" data_type="string" required={true}> %}
+              {{ <chip value="RIPE" label="RIPE NCC" selected={true} /> }}
+              {{ <chip value="ARIN" label="ARIN" /> }}
+              {{ <chip value="APNIC" label="APNIC" /> }}
+              {{ <chip value="LACNIC" label="LACNIC" /> }}
+              {{ <chip value="AFRINIC" label="AFRINIC" /> }}
             {% </chips> %}
             <p class="app-ctl__hint">
-              Who holds the record. <strong>RIPE</strong> = European IP registry (most EU blocks).
-              <strong>ASN</strong> = you care about the autonomous system number.
-              Most people tap <strong>RIPE</strong>.
+              Which registry holds the block. <strong>RIPE NCC</strong> covers Europe, Middle East
+              and Central Asia. Automatic proof works for <strong>RIPE only</strong> right now —
+              its transfer tables are public and machine-readable. Other registries are accepted,
+              but the release will need manual confirmation.
             </p>
           </div>
 
           <div class="app-ctl">
-            {% <chips name="size" label="6. Size" selected="24" data_type="string" required={true}> %}
+            {{ <field name="from_org" type="text" label="6. Your organisation in the registry"
+                       placeholder="e.g. Call Center Poland S.A" required={true}
+                       error_required="type the organisation name as it appears in the registry" /> }}
+            <p class="app-ctl__hint">
+              The legal name that currently holds this block in the registry — exactly as written
+              there. The oracle looks for this name in the public transfer table, so a typo means
+              no automatic release. Copy it from your registry record.
+            </p>
+          </div>
+
+          <div class="app-ctl">
+            {% <chips name="size" label="7. Size" selected="24" data_type="string" required={true}> %}
               {{ <chip value="22" label="/22" /> }}
               {{ <chip value="23" label="/23" /> }}
               {{ <chip value="24" label="/24" selected={true} /> }}
@@ -105,7 +121,7 @@
           </div>
 
           <div class="app-ctl">
-            {{ <toggle name="is_public" label="7. Public listing" checked={true} /> }}
+            {{ <toggle name="is_public" label="8. Public listing" checked={true} /> }}
             <p class="app-ctl__hint">
               <strong>ON</strong> = everyone sees this on the market board.
               <strong>OFF</strong> = only you (draft-style). Leave ON if you want buyers.
@@ -113,11 +129,11 @@
           </div>
 
           <div class="app-ctl">
-            {{ <field name="prefix" type="text" label="8. Network" placeholder="176.120.88.0" required={true}
+            {{ <field name="prefix" type="text" label="9. Network" placeholder="176.120.88.0" required={true}
                        error_required="type the network address" /> }}
             <p class="app-ctl__hint">
               The IP network itself. Example: <em>176.120.88.0</em>.
-              You can write only the network — size from step 6 is added automatically.
+              You can write only the network — size from step 7 is added automatically.
               Or write full CIDR: <em>176.120.88.0/24</em>.
             </p>
           </div>
@@ -128,7 +144,7 @@
         <p class="app-form__section-hint">Text, price, files. Same for every type.</p>
 
         <div class="app-ctl app-ctl--wide">
-          {{ <wysiwyg name="del_title" label="9. Description" height={180} /> }}
+          {{ <wysiwyg name="del_title" label="10. Description" height={180} /> }}
           <p class="app-ctl__hint">
             Explain the deal in normal language: what it is, why it is good.
             Bold/italic ok. This is what shows on the board (as plain text).
@@ -136,7 +152,7 @@
         </div>
 
         <div class="app-ctl">
-          {{ <fixed_n name="del_amount" label="10. Price" scale={8} input_scale={0}
+          {{ <fixed_n name="del_amount" label="11. Price" scale={8} input_scale={0}
                       raw={0} placeholder="1500" suffix="USDC" /> }}
           <p class="app-ctl__hint">
             Total price in <strong>USDC</strong>. Whole dollars only — no cents, no dot.
@@ -145,7 +161,7 @@
         </div>
 
         <div class="app-ctl">
-          {{ <date name="deadline" label="11. Valid until" value={default_deadline}
+          {{ <date name="deadline" label="12. Valid until" value={default_deadline}
                    placeholder="YYYY-MM-DD" /> }}
           <p class="app-ctl__hint">
             Last day this listing stays on the market. After that it drops off the board
@@ -155,7 +171,7 @@
         </div>
 
         <div class="app-ctl app-ctl--wide">
-          {{ <wysiwyg name="del_note" label="12. Terms" height={160} /> }}
+          {{ <wysiwyg name="del_note" label="13. Terms" height={160} /> }}
           <p class="app-ctl__hint">
             Rules of the deal: who pays fees, deadlines, what happens if proof fails.
             If nothing special — write <em>Standard escrow terms</em>.
@@ -163,7 +179,7 @@
         </div>
 
         <div class="app-ctl app-ctl--wide">
-          {{ <file_upload name="attachments" label="13. Files (optional)" multiple={true}
+          {{ <file_upload name="attachments" label="14. Files (optional)" multiple={true}
                           hint="Drop files here or click to choose"
                           accept=".pdf,.zip,.png,.jpg,.jpeg,.txt" /> }}
           <p class="app-ctl__hint">

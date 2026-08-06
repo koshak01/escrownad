@@ -128,13 +128,18 @@
     <section class="tile">
       <span class="tile__label">Resource</span>
       <span class="tile__value mono">{{ deal.prefix }}</span>
-      <span class="tile__sub">{{ deal.asset_type | upper }}{% if deal.resource_kind %} · {{ deal.resource_kind }}{% endif %}</span>
+      <span class="tile__sub">
+        {% if addresses %}{{ addresses }} addresses · {% endif %}{{ deal.resource_kind }} · {{ deal.rir }}
+      </span>
     </section>
 
     <section class="tile">
-      <span class="tile__label">Transfer</span>
+      <span class="tile__label">Registry transfer</span>
       <span class="tile__value">{{ deal.from_org | default(value="—") }}</span>
-      <span class="tile__sub">→ {{ deal.to_org | default(value="—") }}</span>
+      <span class="tile__sub">
+        → {{ deal.to_org | default(value="buyer organisation") }}
+        {% if not oracle_auto %}<br><strong>{{ deal.rir }}</strong>: manual confirmation{% endif %}
+      </span>
     </section>
 
     <section class="tile">

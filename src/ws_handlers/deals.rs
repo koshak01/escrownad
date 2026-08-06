@@ -149,11 +149,12 @@ pub struct DealSaveParams {
     /// `offer` (sell) | `request` (buy demand).
     #[serde(default)]
     pub listing_side: Option<String>,
-    /// IP meta (stored in checklist_json + mapped columns).
+    /// Гео блока — витрина, в поиске факта не участвует.
     #[serde(default)]
     pub geo: Option<String>,
+    /// Региональный реестр: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
     #[serde(default)]
-    pub operator: Option<String>,
+    pub rir: Option<String>,
     /// CIDR size without slash, e.g. "24".
     #[serde(default)]
     pub size: Option<String>,
@@ -286,12 +287,22 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         }
         deal.prefix = net;
     }
-    // geo → from_org (display); operator → to_org
-    if let Some(v) = p.geo.or(p.from_org) {
-        deal.from_org = Some(v);
+    // Гео и реестр — витрина. Организацию-владельца оракул ищет в реестре,
+    // поэтому она хранится отдельно и гео её не подменяет.
+    if let Some(v) = p.geo {
+        deal.geo = Some(v).filter(|s| !s.trim().is_empty());
     }
-    if let Some(v) = p.operator.or(p.to_org) {
-        deal.to_org = Some(v);
+    if let Some(v) = p.rir {
+        let code = v.trim().to_ascii_uppercase();
+        if crate::models::deal::RIRS.contains(&code.as_str()) {
+            deal.rir = code;
+        }
+    }
+    if let Some(v) = p.from_org {
+        deal.from_org = Some(v).filter(|s| !s.trim().is_empty());
+    }
+    if let Some(v) = p.to_org {
+        deal.to_org = Some(v).filter(|s| !s.trim().is_empty());
     }
     if let Some(v) = p.contact_email {
         deal.contact_email = Some(v);
@@ -304,12 +315,6 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
     // structured IP meta in checklist_json
     {
         let mut meta = serde_json::Map::new();
-        if let Some(ref g) = deal.from_org {
-            meta.insert("geo".into(), serde_json::Value::String(g.clone()));
-        }
-        if let Some(ref op) = deal.to_org {
-            meta.insert("operator".into(), serde_json::Value::String(op.clone()));
-        }
         if let Some(sz) = p.size.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             meta.insert(
                 "size".into(),
