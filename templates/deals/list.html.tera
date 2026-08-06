@@ -9,6 +9,7 @@
     {# набор: рынок / мои / споры #}
     <div class="board-bar__group">
       <a class="fchip{% if scope == 'all' %} is-on{% endif %}" href="/deals/">Offers</a>
+      <a class="fchip{% if scope == 'settled' %} is-on{% endif %}" href="/deals/?scope=settled">Settled</a>
       <a class="fchip{% if scope == 'mine' %} is-on{% endif %}" href="/deals/?scope=mine">Mine</a>
       <a class="fchip{% if scope == 'arbitration' %} is-on{% endif %}" href="/deals/?scope=arbitration">Arbitration</a>
     </div>
@@ -39,7 +40,18 @@
   </p>
   {% endif %}
 
-  {% if scope != "all" and not logged_in %}
+  {% if scope == "settled" %}
+  <p class="fund-line">
+    <span class="fund-line__label">Settled deals</span>
+    <span class="fund-line__note">
+      Every row below matches a real transfer record in the public RIPE tables —
+      the money was released because the registry showed the transfer, not because
+      anyone vouched for it.
+    </span>
+  </p>
+  {% endif %}
+
+  {% if scope != "all" and scope != "settled" and not logged_in %}
   <p class="app-hint muted">Connect your wallet to see this list.</p>
   {% endif %}
 

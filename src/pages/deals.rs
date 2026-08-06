@@ -38,11 +38,15 @@ pub struct OfferRow {
 /// Набор сделок на доске.
 ///
 /// - `all` — рынок: только активные предложения (`listed`, срок не вышел);
+/// - `settled` — состоявшиеся сделки: деньги выпущены по факту из реестра.
+///   Показываем всем и без входа: это доказательство, что механизм работает,
+///   и каждую строку можно перепроверить в публичных таблицах RIPE;
 /// - `mine` — созданные мной или где я сторона, в любом статусе;
 /// - `arbitration` — споры, где я сторона.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoardScope {
     All,
+    Settled,
     Mine,
     Arbitration,
 }
@@ -50,6 +54,7 @@ pub enum BoardScope {
 impl BoardScope {
     pub fn parse(raw: Option<&str>) -> Self {
         match raw.map(str::trim).unwrap_or("") {
+            "settled" => Self::Settled,
             "mine" => Self::Mine,
             "arbitration" => Self::Arbitration,
             _ => Self::All,
@@ -59,6 +64,7 @@ impl BoardScope {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::All => "all",
+            Self::Settled => "settled",
             Self::Mine => "mine",
             Self::Arbitration => "arbitration",
         }
@@ -67,7 +73,7 @@ impl BoardScope {
     /// В своих наборах статус сделки виден — там он несёт смысл (стадия).
     /// На общей доске все строки активные, колонка статуса бессмысленна.
     fn shows_status(self) -> bool {
-        self != Self::All
+        !matches!(self, Self::All | Self::Settled)
     }
 }
 
@@ -135,6 +141,8 @@ fn in_scope(deal: &Deal, scope: BoardScope, actor: Option<i64>) -> bool {
         // Рынок: только живые предложения. Черновики, сделки в работе и
         // завершённые на общей доске не висят.
         BoardScope::All => deal.del_status == "listed" && !deal.is_expired(),
+        // Витрина состоявшихся сделок — публичная, вход не нужен.
+        BoardScope::Settled => deal.del_status == "released",
         BoardScope::Mine => is_party,
         BoardScope::Arbitration => is_party && deal.del_status == "dispute",
     }
