@@ -22,7 +22,11 @@ pub struct OfferRow {
     /// Registry: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
     rir: String,
     /// Addresses in the block — what a buyer reads, rather than the mask.
-    addresses: Option<u64>,
+    ///
+    /// Signed on purpose: the template formats it with the platform's number
+    /// filter, which takes an i64. An IPv4 block cannot exceed 2^32 addresses,
+    /// so nothing is lost.
+    addresses: Option<i64>,
     description: String,
     /// Raw FixedN<8> — formatted by a filter in the template. Price never
     /// leaves as an f64: money is integers only.
@@ -259,7 +263,7 @@ fn to_offer_row(d: &Deal, verified_users: &[i64]) -> OfferRow {
         },
         offer_type: d.asset_type.clone(),
         rir: d.rir.clone(),
-        addresses: crate::models::deal::address_count(&d.prefix),
+        addresses: crate::models::deal::address_count(&d.prefix).map(|n| n as i64),
         description: description(d),
         price_raw: d.del_amount.raw(),
         listed_at: date_short(d.del_dat),
@@ -367,11 +371,49 @@ async fn insurance_fund_usdc(
         }
     };
 
-    // USDC has 6 decimals; we show two, the way money reads
     let units: u128 = raw.to::<u128>();
-    let value = format!("{}.{:02}", units / 1_000_000, (units % 1_000_000) / 10_000);
+    let value = usdc_display(units);
     *cache.write().await = Some((std::time::Instant::now(), value.clone()));
     Some(value)
+}
+
+/// USDC base units as a person would write the amount.
+///
+/// Thousands are separated, and a round sum stays round: `1` rather than
+/// `1.00`. Trailing zeros in money read as false precision — nobody writes the
+/// price of a block as "286 720.00".
+///
+/// # Parameters
+/// * `units` — amount in USDC base units (6 decimals)
+///
+/// # Returns
+/// * `String` — e.g. `286 720`, `1 024.5`, `0.02`
+fn usdc_display(units: u128) -> String {
+    let whole = units / 1_000_000;
+    let frac = units % 1_000_000;
+
+    let digits = whole.to_string();
+    let mut grouped = String::with_capacity(digits.len() + digits.len() / 3);
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            grouped.push(' ');
+        }
+        grouped.push(c);
+    }
+
+    if frac == 0 {
+        return grouped;
+    }
+    // two decimals is how money reads; drop a trailing zero, keep a leading one
+    let cents = frac / 10_000;
+    if cents == 0 {
+        return grouped;
+    }
+    if cents.is_multiple_of(10) {
+        format!("{grouped}.{}", cents / 10)
+    } else {
+        format!("{grouped}.{cents:02}")
+    }
 }
 
 /// Everything the buyer's wallet needs in order to fund the lock.
@@ -481,7 +523,7 @@ impl Page for DealShowPage {
         ctx.insert("deal_no", &deal.public_no());
         ctx.insert(
             "addresses",
-            &crate::models::deal::address_count(&deal.prefix),
+            &crate::models::deal::address_count(&deal.prefix).map(|n| n as i64),
         );
         // The network is the goods: before funding, only its size goes out.
         let may_see_prefix = deal.may_see_prefix(actor);
