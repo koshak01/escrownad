@@ -165,8 +165,11 @@ pub enum DbCommand {
     },
 
     /// Find or create forge user for lowercase 0x EVM address (wallet login).
+    /// `pubkey` — публичный ключ из подписи входа; пустая строка, если не
+    /// удалось восстановить (тогда прежнее значение в базе не затирается).
     WalletFindOrCreate {
         address: String,
+        pubkey: String,
     },
     WalletAddressForUser {
         usr_id: i64,
@@ -277,8 +280,9 @@ forge_ipc::client! {
         pub fn save_deal(data: models::Deal) = SaveDeal { data } -> Ok;
 
         /// Find-or-create user by EVM wallet address (lowercase 0x…).
-        pub fn wallet_find_or_create(address: String) -> wallet_auth::WalletUserRow
-            = WalletFindOrCreate { address } -> WalletUser(v) = v;
+        pub fn wallet_find_or_create(address: String, pubkey: String)
+            -> wallet_auth::WalletUserRow
+            = WalletFindOrCreate { address, pubkey } -> WalletUser(v) = v;
         pub fn wallet_address_for_user(usr_id: i64) -> Option<String>
             = WalletAddressForUser { usr_id } -> WalletAddress(v) = v;
         pub fn list_verified_sellers() -> Vec<i64>

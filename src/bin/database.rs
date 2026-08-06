@@ -141,7 +141,7 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 Ok(DbResponse::Ok)
             }
 
-            DbCommand::WalletFindOrCreate { address } => {
+            DbCommand::WalletFindOrCreate { address, pubkey } => {
                 // Same as password login, but identity = EVM address + signature.
                 // New users: usr_is_staff=false, role "user" (never admin),
                 // link users2wallets + configs2users.wallet_address.
@@ -154,6 +154,16 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 .map_err(|e| e.to_string())?;
 
                 if let Some((usr_id,)) = existing {
+                    // Публичный ключ приезжает с каждым входом: у тех, кто
+                    // входил до появления колонки, он появится сам собой.
+                    let _: (i64,) =
+                        forge_db::sqlx::query_as(include_str!("../../sqls/wallets_link.sql"))
+                            .bind(usr_id)
+                            .bind(&address)
+                            .bind(&pubkey)
+                            .fetch_one(&self.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
                     // Ensure role + config stay in sync on every login
                     forge_db::sqlx::query(include_str!("../../sqls/wallets_assign_user_role.sql"))
                         .bind(usr_id)
@@ -197,6 +207,7 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 let _: (i64,) = forge_db::sqlx::query_as(include_str!("../../sqls/wallets_link.sql"))
                     .bind(usr_id)
                     .bind(&address)
+                    .bind(&pubkey)
                     .fetch_one(&self.pool)
                     .await
                     .map_err(|e| e.to_string())?;

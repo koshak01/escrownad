@@ -153,8 +153,31 @@ fn eth_signed_message_hash(message: &str) -> [u8; 32] {
     keccak256(&buf)
 }
 
-/// Recover lowercase 0x address from personal_sign signature.
+/// Восстанавливает адрес из подписи `personal_sign`.
 pub fn recover_address(message: &str, signature_hex: &str) -> Result<String, String> {
+    Ok(recover_address_and_pubkey(message, signature_hex)?.0)
+}
+
+/// Восстанавливает из подписи и адрес, и **публичный ключ**.
+///
+/// Публичный ключ — это то, чем можно зашифровать данные лично для этого
+/// человека: расшифровать сможет только владелец приватного ключа, то есть
+/// сам кошелёк. Из адреса его получить нельзя (адрес — односторонний хэш),
+/// зато из любой подписи — можно, что мы и делаем при входе. Никаких
+/// дополнительных действий от пользователя не требуется: подпись он и так
+/// даёт, чтобы войти.
+///
+/// # Параметры
+/// * `message` — подписанное сообщение
+/// * `signature_hex` — подпись `r||s||v` в hex
+///
+/// # Возвращает
+/// * `Ok((адрес, публичный ключ))` — ключ в сжатом виде, 33 байта hex
+/// * `Err(_)` — подпись не разобралась или не соответствует сообщению
+pub fn recover_address_and_pubkey(
+    message: &str,
+    signature_hex: &str,
+) -> Result<(String, String), String> {
     let sig_raw = parse_sig_hex(signature_hex)?;
     let mut v = sig_raw[64];
     if v >= 27 {
@@ -179,7 +202,12 @@ pub fn recover_address(message: &str, signature_hex: &str) -> Result<String, Str
     }
     let hash = keccak256(&uncompressed[1..]);
     let addr = &hash[12..];
-    Ok(format!("0x{}", hex::encode(addr)))
+    // сжатый вид (0x02/0x03 || x) — компактнее и его ждут библиотеки шифрования
+    let compressed = vk.to_encoded_point(true);
+    Ok((
+        format!("0x{}", hex::encode(addr)),
+        format!("0x{}", hex::encode(compressed.as_bytes())),
+    ))
 }
 
 fn parse_sig_hex(signature_hex: &str) -> Result<[u8; 65], String> {
@@ -226,14 +254,14 @@ pub async fn wallet_login<C: WsConnAuth>(
         return Err("this sign-in was started for a different wallet".into());
     }
 
-    let recovered = recover_address(&message, &params.signature)?;
+    let (recovered, pubkey) = recover_address_and_pubkey(&message, &params.signature)?;
     if recovered != address {
         return Err("signature does not match this wallet".into());
     }
 
     let user = crate::app_context()
         .db
-        .wallet_find_or_create(address.clone())
+        .wallet_find_or_create(address.clone(), pubkey.clone())
         .await
         .map_err(|e| format!("wallet account: {e}"))?;
 
