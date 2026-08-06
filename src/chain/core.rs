@@ -20,6 +20,13 @@ use crate::chain::types::{
 
 sol! {
     #[sol(rpc)]
+    interface IERC20 {
+        function balanceOf(address account) external view returns (uint256);
+    }
+}
+
+sol! {
+    #[sol(rpc)]
     interface IEscrowLock {
         function release(bytes32 dealId, bytes32 ripeKey) external;
         function refund(bytes32 dealId) external;
@@ -113,6 +120,8 @@ pub fn usdc_units(amount: FixedN<8>) -> Result<U256, ChainError> {
 pub struct ChainReader {
     rpc_url: String,
     lock: Address,
+    usdc: Option<Address>,
+    insurance: Option<Address>,
 }
 
 impl ChainReader {
@@ -129,7 +138,40 @@ impl ChainReader {
         Some(Self {
             rpc_url: config.rpc.clone(),
             lock,
+            usdc: Address::from_str(config.usdc.trim()).ok(),
+            insurance: Address::from_str(config.insurance.trim()).ok(),
         })
+    }
+
+    /// Баланс страхового фонда в USDC — как он есть в цепи.
+    ///
+    /// Фонд лежит на отдельном адресе, поэтому сумма не «по нашим данным»,
+    /// а проверяемая: любой может открыть эксплорер и увидеть то же самое.
+    ///
+    /// # Возвращает
+    /// * `Ok(U256)` — баланс в базовых единицах USDC
+    /// * `Err(_)` — сеть недоступна или адреса не настроены
+    pub async fn insurance_balance(&self) -> Result<U256, ChainError> {
+        let (usdc, fund) = match (self.usdc, self.insurance) {
+            (Some(u), Some(f)) => (u, f),
+            _ => {
+                return Err(ChainError::Config(
+                    "в константе `chain` нет usdc или insurance".into(),
+                ));
+            }
+        };
+        let url = self
+            .rpc_url
+            .parse()
+            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
+        let provider = ProviderBuilder::new().connect_http(url);
+        let token = IERC20::new(usdc, &provider);
+        let balance = token
+            .balanceOf(fund)
+            .call()
+            .await
+            .map_err(|e| ChainError::Rpc(format!("balanceOf: {e}")))?;
+        Ok(balance)
     }
 
     /// Состояние сделки в замке: статус и сумма.

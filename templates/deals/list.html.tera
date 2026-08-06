@@ -31,6 +31,14 @@
     <span class="board-bar__count" data-board-count>{{ shown }} / {{ total }}</span>
   </div>
 
+  {% if insurance_fund %}
+  <p class="fund-line">
+    <span class="fund-line__label">Insurance fund</span>
+    <span class="fund-line__value">{{ insurance_fund }} USDC</span>
+    <span class="fund-line__note">1% of every settled deal goes here — on-chain, verifiable</span>
+  </p>
+  {% endif %}
+
   {% if scope != "all" and not logged_in %}
   <p class="app-hint muted">Connect your wallet to see this list.</p>
   {% endif %}

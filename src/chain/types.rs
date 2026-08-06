@@ -66,6 +66,12 @@ pub struct ChainConfig {
     /// Адрес EscrowLock.
     #[serde(default)]
     pub lock: String,
+    /// Казна площадки — куда идёт комиссия.
+    #[serde(default)]
+    pub treasury: String,
+    /// Страховой фонд — отдельный адрес, его баланс показываем на сайте.
+    #[serde(default)]
+    pub insurance: String,
     /// Приватный ключ наблюдателя — им подписываются release/refund.
     /// Нужен только процессу-наблюдателю.
     #[serde(default)]

@@ -842,3 +842,33 @@ td.deal-no {
   border-radius: 4px;
   object-fit: cover;
 }
+
+/* ── insurance fund line ───────────────────────────────────────────── */
+.fund-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  font-size: 12px;
+}
+.fund-line__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fund-line__value {
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fund-line__note {
+  color: var(--muted);
+  font-size: 11px;
+}

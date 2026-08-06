@@ -268,6 +268,8 @@ impl Page for DealsListPage {
             .await
             .map_err(WsError::PageLoad)?;
 
+        let fund = insurance_fund_usdc(&ctx.global.constants).await;
+
         ctx.insert("shown", &rows.len());
         ctx.insert("total", &total);
         ctx.insert("deals", &rows);
@@ -275,6 +277,7 @@ impl Page for DealsListPage {
         ctx.insert("scope", &scope.as_str());
         ctx.insert("show_status", &scope.shows_status());
         ctx.insert("logged_in", &actor.is_some());
+        ctx.insert("insurance_fund", &fund);
         Ok(())
     }
 }
@@ -306,6 +309,47 @@ impl Page for DealNewPage {
         ctx.insert("listing_side", &side);
         Ok(())
     }
+}
+
+/// Кеш баланса страхового фонда: сеть спрашиваем не чаще раза в минуту,
+/// иначе каждый рендер доски стоил бы запроса в цепь.
+static FUND_CACHE: std::sync::OnceLock<
+    tokio::sync::RwLock<Option<(std::time::Instant, String)>>,
+> = std::sync::OnceLock::new();
+
+const FUND_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Баланс страхового фонда для показа на доске.
+///
+/// Читается из цепи по адресу фонда — цифра проверяемая, любой может
+/// открыть эксплорер и увидеть ту же сумму.
+///
+/// # Возвращает
+/// * `Some(строка)` — например `"12.50"` · `None` — цепь не настроена
+///   или недоступна (тогда блок просто не показываем)
+async fn insurance_fund_usdc(constants: &std::collections::HashMap<String, serde_json::Value>) -> Option<String> {
+    let cache = FUND_CACHE.get_or_init(|| tokio::sync::RwLock::new(None));
+    if let Some((at, value)) = cache.read().await.as_ref() {
+        if at.elapsed() < FUND_CACHE_TTL {
+            return Some(value.clone());
+        }
+    }
+
+    let config = crate::chain::types::ChainConfig::from_constants(constants)?;
+    let reader = crate::chain::core::ChainReader::new(&config)?;
+    let raw = match reader.insurance_balance().await {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "не прочитал баланс страхового фонда");
+            return None;
+        }
+    };
+
+    // USDC — 6 знаков; показываем два, как деньги
+    let units: u128 = raw.to::<u128>();
+    let value = format!("{}.{:02}", units / 1_000_000, (units % 1_000_000) / 10_000);
+    *cache.write().await = Some((std::time::Instant::now(), value.clone()));
+    Some(value)
 }
 
 /// Всё, что нужно кошельку покупателя, чтобы оплатить замок.
