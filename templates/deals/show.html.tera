@@ -31,7 +31,10 @@
       </form>
       {% endif %}
 
-      {% if deal.del_status == "listed" and not is_creator and not is_expired %}
+      {# Живая цепь: покупка — это депозит. Кто первым положил деньги, тот и
+         купил; лот занимает контракт, а не наша база. Без цепи остаётся
+         старый путь через заявку и подтверждение продавцом. #}
+      {% if deal.del_status == "listed" and not is_creator and not is_expired and not chain_ready %}
       <form class="deal-bar__form">
         {{ <hidden name="hash" value={deal.del_hash} /> }}
         {{ <hidden name="action" value="request" /> }}
@@ -55,8 +58,7 @@
       </form>
       {% endif %}
 
-      {% if deal.del_status == "accepted" and is_buyer %}
-        {% if chain_ready %}
+      {% if chain_ready and not is_creator and not is_expired and (deal.del_status == "listed" or deal.del_status == "requested" or deal.del_status == "accepted") %}
         <button type="button" class="app-top__cta app-top__cta--solid"
                 data-escrow-pay
                 data-hash="{{ deal.del_hash }}"
@@ -72,13 +74,12 @@
                 data-deadline="{{ chain.deadline }}">
           Deposit {{ price_raw | fixed_n(scale=8) }} USDC
         </button>
-        {% else %}
+      {% elif deal.del_status == "accepted" and is_buyer %}
         <form class="deal-bar__form">
           {{ <hidden name="hash" value={deal.del_hash} /> }}
           {{ <hidden name="action" value="fund" /> }}
           {{ <button label="Deposit USDC (mock)" type="submit" handler="deals_action" variant="primary" /> }}
         </form>
-        {% endif %}
       {% endif %}
 
       {% if deal.del_status == "funded" and is_seller %}
