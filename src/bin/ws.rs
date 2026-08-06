@@ -374,9 +374,10 @@ async fn run() -> Result<()> {
                 get(forge_ws::bootstrap::ws_route_with_session::<WsState>),
             )
             // Вебхук Telegram: оператор жмёт Approve/Decline на карточке
-            // заявки. Секрет в адресе — из константы telegrams.webhook_secret.
+            // заявки. Путь фиксированный — секрет ездит в заголовке, иначе
+            // он утекал бы в access_log nginx.
             .route(
-                "/tg/hook/{secret}",
+                "/tg/hook",
                 axum::routing::post(escrownad::tg_hook::handle),
             )
             // .route("/peer-tool/{usr_hash}/", get(forge_ws::peer_ws::ws_route_peer::<WsState>))
