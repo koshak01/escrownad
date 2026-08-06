@@ -244,6 +244,20 @@
         <span class="party__role">Release</span>
         <code class="party__addr">{{ deal.release_tx | default(value="—") }}</code>
       </div>
+      {# The lot as a verified asset. Issued when the operator approved it, with
+         the identity check built in: it cannot be transferred to a wallet
+         without a valid identity, here or anywhere else. #}
+      {% if deal.asset_token %}
+      <div class="party">
+        <span class="party__role">Asset</span>
+        <code class="party__addr">{{ deal.asset_token }}</code>
+      </div>
+      {% elif deal.asset_request %}
+      <div class="party">
+        <span class="party__role">Asset</span>
+        <code class="party__addr">being issued…</code>
+      </div>
+      {% endif %}
       {% if deal.del_status == "awaiting_proof" %}
       <p class="muted tile__sub">Waiting for the RIPE fact. USDC stays locked until it matches.</p>
       {% elif deal.del_status == "released" %}

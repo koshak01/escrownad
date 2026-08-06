@@ -195,6 +195,12 @@ pub async fn build_card(deal: &Deal) -> ModerationCard {
     }
 }
 
+/// Icon shown next to the asset wherever it is listed.
+///
+/// Their documentation marks this optional; their API refuses an issuance
+/// without it. Ours, served from the site.
+const ASSET_ICON: &str = "https://escrownad.com/static/images/icon-512.png";
+
 /// Issues the lot as a verified asset, once an operator has approved it.
 ///
 /// This is the point their track calls "compliance embedded from the issuance
@@ -241,7 +247,9 @@ pub async fn issue_asset(deal: &crate::models::Deal) -> Option<String> {
         decimals: 6,
         admin_address: admin.to_string(),
         rule: crate::cleanverse::types::AssetRule::any_valid_identity(),
-        icon: None,
+        // Their documentation marks the icon optional; their API refuses
+        // without one ("icon it cannot be empty"). Found by trying.
+        icon: Some(ASSET_ICON.to_string()),
     };
 
     match crate::cleanverse::core::launch_asset(&config, &launch).await {
