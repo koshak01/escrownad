@@ -106,10 +106,23 @@ fn money(amount: FixedN<8>) -> String {
 /// chain. If either is unreachable the fields stay empty: a decision is still
 /// possible, just with less to go on.
 pub async fn build_card(deal: &Deal) -> ModerationCard {
-    let wallet = deal.seller_wallet.clone().unwrap_or_default();
+    // Whoever filed this listing — and on a "wanted" listing that is the buyer,
+    // not the seller. Reading the seller unconditionally left the operator
+    // staring at a blank address and zero balances on every demand.
+    let (wallet, applicant_usr_id) = if deal.listing_side == "request" {
+        (
+            deal.buyer_wallet.clone().unwrap_or_default(),
+            deal.buyer_usr_id,
+        )
+    } else {
+        (
+            deal.seller_wallet.clone().unwrap_or_default(),
+            deal.seller_usr_id,
+        )
+    };
 
     // how many deals this wallet had before — "new" means this is its first
-    let wallet_deals = match deal.seller_usr_id {
+    let wallet_deals = match applicant_usr_id {
         Some(uid) => app_context()
             .db
             .list_deals_for_user(uid)

@@ -305,6 +305,22 @@ impl Deal {
         }
     }
 
+    /// Forgets who was holding the lot, whichever side they were on.
+    ///
+    /// Mirrors `take`: on a demand listing the taker is the seller, so wiping
+    /// the buyer would erase the author of the listing instead of the person
+    /// who let it go.
+    fn clear_hold(&mut self) {
+        if self.listing_side == "request" {
+            self.seller_usr_id = None;
+            self.seller_wallet = None;
+        } else {
+            self.buyer_usr_id = None;
+            self.buyer_wallet = None;
+        }
+        self.reserved_until = None;
+    }
+
     /// Assigns the deal's permanent hash — idempotently.
     ///
     /// The hash is the public identifier: the `/deals/<hash>/` URL and the lot
@@ -416,9 +432,17 @@ impl Deal {
                 self.ensure_deadline();
                 self.del_status = LISTED.into();
             }
-            // The buyer takes the lot: it leaves the board and is held for
-            // them for a set time. Nobody else can take it meanwhile — the
-            // queue is settled by whoever got there first.
+            // Somebody takes the lot: it leaves the board and is held for them
+            // for a set time. Nobody else can take it meanwhile — the queue is
+            // settled by whoever got there first.
+            //
+            // Which side the taker joins depends on what kind of listing it is.
+            // On an offer they are the buyer; on a demand ("wanted") listing
+            // the person who posted it is the buyer, and whoever takes it is
+            // the seller. Writing the taker into `buyer` unconditionally would
+            // overwrite the author of a demand and hand their own listing to a
+            // stranger — along with the right to confirm the deal and see the
+            // network.
             "take" => {
                 if self.del_status != LISTED {
                     return Err("this lot is not available".into());
@@ -426,8 +450,13 @@ impl Deal {
                 if self.is_expired() {
                     return Err("listing has expired".into());
                 }
-                self.buyer_usr_id = actor_usr_id;
-                self.buyer_wallet = buyer_wallet;
+                if self.listing_side == "request" {
+                    self.seller_usr_id = actor_usr_id;
+                    self.seller_wallet = buyer_wallet;
+                } else {
+                    self.buyer_usr_id = actor_usr_id;
+                    self.buyer_wallet = buyer_wallet;
+                }
                 self.reserved_until =
                     Some(Timestamp(Timestamp::now().raw() + RESERVE_HOURS * 3600));
                 self.del_status = RESERVED.into();
@@ -439,27 +468,25 @@ impl Deal {
                 }
                 self.del_status = ACCEPTED.into();
             }
-            // The seller backed out. The lot returns to the board and the
-            // refusal is counted: somebody who routinely backs out after a
-            // hold wastes buyers' time, and that should be visible.
+            // The lister backed out after somebody took the lot. It returns to
+            // the board and the refusal is counted: somebody who routinely
+            // backs out after a hold wastes other people's time, and that
+            // should be visible.
             "decline_deal" => {
                 if self.del_status != RESERVED {
                     return Err("nothing to decline".into());
                 }
                 self.declines = self.declines.saturating_add(1);
-                self.buyer_usr_id = None;
-                self.buyer_wallet = None;
-                self.reserved_until = None;
+                self.clear_hold();
                 self.del_status = LISTED.into();
             }
-            // The hold expired — the lot returns to the board, no mark against the seller.
+            // The hold expired — the lot returns to the board, no mark against
+            // the person who listed it.
             "release_reserve" => {
                 if self.del_status != RESERVED {
                     return Err("lot is not reserved".into());
                 }
-                self.buyer_usr_id = None;
-                self.buyer_wallet = None;
-                self.reserved_until = None;
+                self.clear_hold();
                 self.del_status = LISTED.into();
             }
             "request" => {

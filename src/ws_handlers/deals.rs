@@ -235,7 +235,7 @@ pub async fn deals_save(
         }
         if !matches!(
             existing.del_status.as_str(),
-            "draft" | "verified" | "listed"
+            "draft" | "verified" | "listed" | "rejected"
         ) {
             return Err("listing is locked at this stage".into());
         }
@@ -252,6 +252,19 @@ pub async fn deals_save(
             ..Default::default()
         }
     };
+
+    // What an operator actually reviewed: the network, the price and the
+    // registry. If any of it changes on a lot that is already public, the
+    // approval no longer covers what is on the board — so it goes back for
+    // review. Without this, a harmless lot could be approved and then quietly
+    // turned into a different one.
+    let reviewed_before = (
+        deal.prefix.clone(),
+        deal.del_amount.raw(),
+        deal.rir.clone(),
+        deal.resource_kind.clone(),
+    );
+    let was_public = deal.del_status == crate::models::deal::status::LISTED;
 
     // the wysiwyg returns HTML — clean it against a whitelist, else it cannot be rendered
     if let Some(v) = p.del_title {
@@ -395,6 +408,18 @@ pub async fn deals_save(
         }
     }
 
+    // A public lot whose substance changed goes back to an operator.
+    let reviewed_now = (
+        deal.prefix.clone(),
+        deal.del_amount.raw(),
+        deal.rir.clone(),
+        deal.resource_kind.clone(),
+    );
+    let needs_review = was_public && reviewed_now != reviewed_before;
+    if needs_review {
+        deal.del_status = crate::models::deal::status::MODERATION.into();
+    }
+
     // the hash is needed before sending: the card's URL is built from it
     deal.assign_hash();
     let hash = deal.del_hash.clone();
@@ -406,12 +431,14 @@ pub async fn deals_save(
         .map_err(|e| e.to_string())?;
 
     // the listing went to the operator — send the card with decision buttons
-    if publish {
+    if publish || needs_review {
         crate::moderation::notify(&deal).await;
     }
 
     let msg = if publish {
         "Submitted for review — you will see it on the board once approved"
+    } else if needs_review {
+        "Changed the network, price or registry — the lot goes back for review"
     } else {
         "Listing saved"
     };
@@ -602,9 +629,19 @@ fn authorize_action(deal: &Deal, action: &str, actor: i64) -> Result<(), String>
                 Err("forbidden: party only".into())
             }
         }
-        "accept" | "start_prepare" | "mark_prepared" => {
-            // After match: seller-side ops (prep). On offer creator is seller;
-            // on request, seller is the one who responded.
+        // Accepting a response belongs to whoever published the listing — they
+        // are the one being responded to. On an offer that is the seller; on a
+        // demand listing it is the buyer, and requiring the seller there left
+        // the button visible to somebody who could not press it.
+        "accept" => {
+            if is_creator(deal, actor) {
+                Ok(())
+            } else {
+                Err("forbidden: only the person who listed it can accept".into())
+            }
+        }
+        // Preparing the resource is the seller's work, whichever side listed it.
+        "start_prepare" | "mark_prepared" => {
             if seller {
                 Ok(())
             } else {

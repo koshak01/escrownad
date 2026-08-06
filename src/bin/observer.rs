@@ -161,14 +161,12 @@ async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
         .await
         .map_err(|e| anyhow::anyhow!("list deals: {e}"))?;
 
+    // The query already returns exactly these two; the filter is a second lock
+    // on the same door, kept so that a change to the SQL cannot quietly widen
+    // what the observer is willing to release money against.
     let open: Vec<_> = deals
         .into_iter()
-        .filter(|d| {
-            matches!(
-                d.del_status.as_str(),
-                "listed" | "funded" | "awaiting_proof"
-            )
-        })
+        .filter(|d| matches!(d.del_status.as_str(), "funded" | "awaiting_proof"))
         .collect();
     if open.is_empty() {
         info!("no open deals");
