@@ -40,3 +40,6 @@ bot.secret.txt
 
 # internal notes and drafts — not for publication
 .private/
+
+# vendor documentation obtained under an invite code — not ours to publish
+docs/vendor/
