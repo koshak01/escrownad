@@ -5,6 +5,9 @@
 # Node (if any later)
 node_modules/
 
+# Agent internal notes (session backups, peer hashes)
+.claude/
+
 # Secrets / local config
 .env
 .env.*
@@ -32,3 +35,6 @@ contracts/cache/
 broadcast/
 bot.secret.txt
 *.secret.txt
+
+# internal notes and drafts — not for publication
+.private/

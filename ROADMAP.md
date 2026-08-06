@@ -9,13 +9,14 @@ First asset class: IPv4 blocks transferred through RIPE.
 
 | Piece | State |
 |---|---|
-| Escrow contract on Monad (USDC) | live on testnet, `0xe5289D23829ABE1Aa882c3355A65001de7294a46`, source verified |
+| Escrow contract on Monad (USDC) | live on testnet, `0x4c9A68831E51853b981EF3e2f1461cdD46430da4`, source verified |
 | Oracle: RIPE transfer tables | live — watches the network, waits for a **new** transfer record |
 | Oracle: registry lookup over RDAP | live — reads holder, resource type, country straight from the registry |
 | Buyer pays from own wallet | live — approve + fund from Phantom, server re-checks the fact on-chain |
 | Fee 1% + 1% to insurance fund | live, fund balance shown on the board and readable by anyone in the explorer |
 | Deadline refund without us | live — `refundAfterDeadline`, buyer takes the money back if the observer goes silent |
 | Network hidden until funded | live — outsiders see size, registry, country and price, not the exact block |
+| Verified identity on both parties | in the contract — `fund` refuses unless the CCP validator confirms buyer **and** seller |
 
 ## Next
 
