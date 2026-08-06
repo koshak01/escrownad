@@ -872,3 +872,57 @@ td.deal-no {
   color: var(--muted);
   font-size: 11px;
 }
+
+/* ── error pages (500 / 404) ───────────────────────────────────────── */
+.err {
+  max-width: 44rem;
+  padding: 40px 0 24px;
+}
+.err__code {
+  display: inline-block;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 3px 9px;
+  margin-bottom: 14px;
+}
+.err__title {
+  margin: 0 0 10px;
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.err__lead {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.err__note {
+  margin: 0 0 20px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.err__note strong {
+  color: var(--fg);
+}
+.err__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.err__id {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
