@@ -13,10 +13,12 @@
 //! 2. **Сравнение за постоянное время** — обычное `==` выходит из цикла на
 //!    первом несовпавшем байте, и по времени ответа секрет подбирается
 //!    побайтово.
-//! 3. **Список модераторов** — кнопка живёт в групповом чате, и нажать её
-//!    может любой участник. У группы публичный юзернейм, то есть вступить
-//!    может посторонний. Решение принимает только тот, чей Telegram-ID есть
-//!    в константе `telegrams.moderators`.
+//! 3. **Членство в группе** — кнопка живёт в закрытой группе операторов.
+//!    Право решать даёт само присутствие в ней: добавили человека — он
+//!    модератор, убрали — перестал. Отдельного списка нет намеренно, иначе
+//!    было бы два источника правды, которые рано или поздно разойдутся.
+//!    Проверяем два условия: нажатие пришло именно из нашего канала
+//!    модерации и нажавший в нём состоит.
 
 use axum::Json;
 use axum::http::{HeaderMap, StatusCode};
@@ -43,6 +45,19 @@ pub struct CallbackQuery {
     pub data: Option<String>,
     #[serde(default)]
     pub from: Option<TgUser>,
+    #[serde(default)]
+    pub message: Option<TgMessage>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TgMessage {
+    #[serde(default)]
+    pub chat: Option<TgChat>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TgChat {
+    pub id: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,20 +130,31 @@ pub async fn handle(headers: HeaderMap, Json(update): Json<TgUpdate>) -> StatusC
         return StatusCode::OK;
     };
 
-    // Кто нажал. Кнопка висит в групповом чате, нажать может любой участник —
-    // поэтому решение принимает только модератор из списка.
+    // Кто и откуда нажал. Право решать даёт присутствие в группе операторов:
+    // нажатие должно прийти из неё, и нажавший должен в ней состоять.
     let actor = query.from.as_ref().map(|u| u.id).unwrap_or_default();
-    if !settings.moderators.contains(&actor) {
+    let chat = query
+        .message
+        .as_ref()
+        .and_then(|m| m.chat.as_ref())
+        .map(|c| c.id)
+        .unwrap_or_default();
+
+    if settings.moderation_chat == 0 || chat != settings.moderation_chat {
+        warn!(chat, "вебхук: нажатие пришло не из группы операторов");
+        return StatusCode::OK;
+    }
+    if !is_member(&settings.token, chat, actor).await {
         warn!(
             actor,
             username = query.from.as_ref().and_then(|u| u.username.as_deref()),
-            "вебхук: решение от постороннего — отклонено"
+            "вебхук: нажавший не состоит в группе — отклонено"
         );
         let _ = app_context()
             .notifier
             .answer_callback(
                 query.id,
-                Some("You are not a moderator of this board".into()),
+                Some("Only members of the operators group can decide".into()),
                 true,
             )
             .await;
@@ -194,12 +220,60 @@ async fn apply(decision: &Decision, actor: i64) -> Result<String, String> {
     })
 }
 
+/// Состоит ли человек в группе операторов.
+///
+/// Спрашиваем у Telegram напрямую: список участников — его дело, а не наше.
+/// Вышел из группы — право решать пропало в ту же секунду, без правок в базе.
+///
+/// # Возвращает
+/// * `true` — участник, администратор или создатель
+/// * `false` — вышел, изгнан, никогда не состоял, либо Telegram недоступен
+async fn is_member(token: &str, chat_id: i64, user_id: i64) -> bool {
+    if token.is_empty() || user_id == 0 {
+        return false;
+    }
+    let url = format!("https://api.telegram.org/bot{token}/getChatMember");
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(error = %e, "вебхук: не собрал http-клиент");
+            return false;
+        }
+    };
+    // параметры в самом адресе: фича `query` у reqwest в нашей сборке выключена
+    let url = format!("{url}?chat_id={chat_id}&user_id={user_id}");
+    let resp = client.get(&url).send().await;
+    let body: Value = match resp {
+        Ok(r) => match r.json().await {
+            Ok(v) => v,
+            Err(e) => {
+                warn!(error = %e, "вебхук: getChatMember не разобрался");
+                return false;
+            }
+        },
+        Err(e) => {
+            warn!(error = %e, "вебхук: getChatMember недоступен");
+            return false;
+        }
+    };
+    let status = body
+        .get("result")
+        .and_then(|r| r.get("status"))
+        .and_then(|s| s.as_str())
+        .unwrap_or_default();
+    matches!(status, "creator" | "administrator" | "member")
+}
+
 /// Настройки бота из константы `telegrams`.
 #[derive(Debug, Default)]
 struct TelegramSettings {
+    token: String,
     webhook_secret: String,
-    /// Telegram-ID тех, кому позволено решать судьбу заявок.
-    moderators: Vec<i64>,
+    /// Чат группы операторов — только оттуда принимаем решения.
+    moderation_chat: i64,
 }
 
 async fn telegram_settings() -> TelegramSettings {
@@ -210,15 +284,19 @@ async fn telegram_settings() -> TelegramSettings {
         return TelegramSettings::default();
     };
     TelegramSettings {
+        token: value
+            .get("token")
+            .and_then(|s| s.as_str())
+            .unwrap_or_default()
+            .to_string(),
         webhook_secret: value
             .get("webhook_secret")
             .and_then(|s| s.as_str())
             .unwrap_or_default()
             .to_string(),
-        moderators: value
-            .get("moderators")
-            .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_i64()).collect())
+        moderation_chat: value
+            .get("moderation_chat")
+            .and_then(|v| v.as_i64())
             .unwrap_or_default(),
     }
 }
