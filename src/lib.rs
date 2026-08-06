@@ -15,6 +15,8 @@
 
 pub mod chain;
 pub mod models;
+pub mod moderation;
+pub mod tg_hook;
 pub mod observer;
 pub mod pages;
 pub mod sanitize;
@@ -160,6 +162,10 @@ pub enum DbCommand {
     GetDealByHash {
         hash: String,
     },
+    /// Поиск по началу хэша: в кнопку Telegram полный хэш не влезает.
+    GetDealByHashPrefix {
+        prefix: String,
+    },
     SaveDeal {
         data: models::Deal,
     },
@@ -277,6 +283,8 @@ forge_ipc::client! {
         pub fn get_deal(id: i64) -> Option<models::Deal> = GetDeal { id } -> Deal(v) = v;
         pub fn get_deal_by_hash(hash: String) -> Option<models::Deal>
             = GetDealByHash { hash } -> Deal(v) = v;
+        pub fn get_deal_by_hash_prefix(prefix: String) -> Option<models::Deal>
+            = GetDealByHashPrefix { prefix } -> Deal(v) = v;
         pub fn save_deal(data: models::Deal) = SaveDeal { data } -> Ok;
 
         /// Find-or-create user by EVM wallet address (lowercase 0x…).
@@ -373,6 +381,34 @@ forge_ipc::client! {
 }
 
 impl NotifierClient {
+    /// Ответить Telegram на нажатие кнопки — гасит спиннер у оператора.
+    ///
+    /// Идёт в обход очереди: Telegram ждёт ответ 15 секунд.
+    ///
+    /// # Параметры
+    /// * `callback_query_id` — идентификатор нажатия из вебхука
+    /// * `text` — короткое уведомление над кнопкой
+    /// * `show_alert` — `true` — модалка вместо всплывающей подсказки
+    pub async fn answer_callback(
+        &self,
+        callback_query_id: String,
+        text: Option<String>,
+        show_alert: bool,
+    ) -> forge_ipc::IpcResult<()> {
+        match self
+            .inner
+            .execute(forge_notifier::NotifierCommand::AnswerCallbackQuery {
+                callback_query_id,
+                text,
+                show_alert,
+            })
+            .await?
+        {
+            forge_notifier::NotifierResponse::Queued => Ok(()),
+            other => Err(forge_ipc::IpcError::Server(format!("unexpected: {other:?}"))),
+        }
+    }
+
     /// Поставить сообщение в очередь по шаблону `tpl_code`. `params` —
     /// контекст для Tera-рендера, обычно `serde_json!({...})`.
     pub async fn send<P: serde::Serialize>(

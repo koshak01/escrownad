@@ -143,6 +143,39 @@ impl ChainReader {
         })
     }
 
+    /// Баланс любого адреса: USDC и родная монета сети.
+    ///
+    /// Нужно оператору при модерации: видно, чем человек располагает и
+    /// похож ли кошелёк на пустой одноразовый.
+    ///
+    /// # Возвращает
+    /// * `(usdc, native)` в базовых единицах: USDC 6 знаков, MON 18
+    pub async fn wallet_balances(&self, who: &str) -> Result<(U256, U256), ChainError> {
+        let addr = Address::from_str(who.trim()).map_err(|_| ChainError::BadAddress {
+            what: "wallet",
+            value: who.to_string(),
+        })?;
+        let usdc = self.usdc.ok_or_else(|| {
+            ChainError::Config("в константе `chain` нет адреса usdc".into())
+        })?;
+        let url = self
+            .rpc_url
+            .parse()
+            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
+        let provider = ProviderBuilder::new().connect_http(url);
+        let token = IERC20::new(usdc, &provider);
+        let usdc_balance = token
+            .balanceOf(addr)
+            .call()
+            .await
+            .map_err(|e| ChainError::Rpc(format!("balanceOf: {e}")))?;
+        let native = provider
+            .get_balance(addr)
+            .await
+            .map_err(|e| ChainError::Rpc(format!("getBalance: {e}")))?;
+        Ok((usdc_balance, native))
+    }
+
     /// Баланс страхового фонда в USDC — как он есть в цепи.
     ///
     /// Фонд лежит на отдельном адресе, поэтому сумма не «по нашим данным»,

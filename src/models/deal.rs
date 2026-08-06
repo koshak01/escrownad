@@ -11,6 +11,10 @@ use serde::{Deserialize, Serialize};
 pub mod status {
     pub const DRAFT: &str = "draft";
     pub const VERIFIED: &str = "verified";
+    /// Ждёт решения оператора — на доску ещё не попал.
+    pub const MODERATION: &str = "moderation";
+    /// Оператор отклонил заявку.
+    pub const REJECTED: &str = "rejected";
     pub const LISTED: &str = "listed";
     pub const REQUESTED: &str = "requested";
     pub const ACCEPTED: &str = "accepted";
@@ -413,14 +417,29 @@ impl Deal {
                 }
                 self.del_status = AWAITING_PROOF.into();
             }
-            // Publish = soft verify + list (seller one-shot)
+            // Отправка на модерацию: сам по себе лот на доску не попадает.
+            // Оператор смотрит заявку и решает — approve/decline из Telegram.
             "publish" => {
-                if !matches!(self.del_status.as_str(), DRAFT | VERIFIED) {
+                if !matches!(self.del_status.as_str(), DRAFT | VERIFIED | REJECTED) {
                     return Err("publish only from draft/verified".into());
                 }
                 self.soft_verified = true;
                 self.ensure_deadline();
+                self.del_status = MODERATION.into();
+            }
+            // Решение оператора.
+            "approve" => {
+                if self.del_status != MODERATION {
+                    return Err("approve only from moderation".into());
+                }
+                self.ensure_deadline();
                 self.del_status = LISTED.into();
+            }
+            "decline" => {
+                if self.del_status != MODERATION {
+                    return Err("decline only from moderation".into());
+                }
+                self.del_status = REJECTED.into();
             }
             "open_dispute" => {
                 if !matches!(

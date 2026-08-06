@@ -402,12 +402,13 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         .await
         .map_err(|e| e.to_string())?;
 
+    // заявка ушла оператору — отправляем карточку с кнопками решения
+    if publish {
+        crate::moderation::notify(&deal).await;
+    }
+
     let msg = if publish {
-        if deal.listing_side == "request" {
-            "Request published"
-        } else {
-            "Offer published"
-        }
+        "Submitted for review — you will see it on the board once approved"
     } else {
         "Listing saved"
     };

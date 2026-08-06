@@ -30,3 +30,5 @@ deploy/nginx/ssl/
 contracts/out/
 contracts/cache/
 broadcast/
+bot.secret.txt
+*.secret.txt
