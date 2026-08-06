@@ -24,9 +24,15 @@ const addrArg = (addr) => pad(addr.toLowerCase().replace(/^0x/, ''));
 const uintArg = (value) => pad(BigInt(value).toString(16));
 const b32Arg = (hex) => pad(hex.replace(/^0x/, ''));
 
+// Провайдер берём тот же, что и при входе (wallet.js): Phantom EVM в
+// приоритете. Свою логику выбора не пишем — иначе оплата пойдёт не тем
+// кошельком, которым человек залогинился.
 function provider() {
-    const eth = window.ethereum;
-    if (!eth) throw new Error('No wallet found. Install MetaMask or Phantom.');
+    const eth = (window.EscrowWallet && window.EscrowWallet.getProvider())
+        || window.ethereum;
+    if (!eth || !eth.request) {
+        throw new Error('No wallet found. Open the page in Phantom or another EVM wallet.');
+    }
     return eth;
 }
 
@@ -47,18 +53,27 @@ async function ensureNetwork(cfg) {
             params: [{ chainId: cfg.chainIdHex }],
         });
     } catch (e) {
-        // 4902 — сеть кошельку неизвестна, добавляем
+        // 4902 — сеть кошельку неизвестна, пробуем добавить
         if (e && (e.code === 4902 || e.code === -32603)) {
-            await eth.request({
-                method: 'wallet_addEthereumChain',
-                params: [{
-                    chainId: cfg.chainIdHex,
-                    chainName: 'Monad Testnet',
-                    nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-                    rpcUrls: [cfg.rpcUrl],
-                    blockExplorerUrls: ['https://testnet.monadexplorer.com'],
-                }],
-            });
+            try {
+                await eth.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: cfg.chainIdHex,
+                        chainName: 'Monad Testnet',
+                        nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
+                        rpcUrls: [cfg.rpcUrl],
+                        blockExplorerUrls: ['https://testnet.monadexplorer.com'],
+                    }],
+                });
+            } catch (addErr) {
+                // Phantom не даёт добавлять произвольные сети: тестовые сети
+                // включаются у него в настройках, а не по запросу страницы.
+                throw new Error(
+                    'Switch your wallet to Monad Testnet manually. '
+                    + 'In Phantom: Settings → Developer Settings → Testnet Mode, then pick Monad Testnet.',
+                );
+            }
         } else {
             throw e;
         }
