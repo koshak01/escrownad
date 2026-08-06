@@ -353,6 +353,45 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         deal.apply_action("publish", Some(actor), None)?;
     }
 
+    // Спрашиваем реестр о сети: держатель, тип ресурса и страна берутся
+    // оттуда, а не со слов продавца. Заодно это проверка, что сеть вообще
+    // существует. Реестр молчит — не мешаем публикации, просто оставляем
+    // введённое вручную.
+    if !deal.prefix.trim().is_empty() {
+        match crate::observer::rdap::lookup(&deal.prefix).await {
+            Ok(Some(record)) => {
+                if deal.from_org.as_deref().unwrap_or("").trim().is_empty()
+                    && !record.holder.is_empty()
+                {
+                    deal.from_org = Some(record.holder.clone());
+                }
+                if !record.kind.is_empty() {
+                    deal.resource_kind = record.kind.clone();
+                }
+                if deal.geo.as_deref().unwrap_or("").trim().is_empty()
+                    && !record.country.is_empty()
+                {
+                    deal.geo = Some(record.country.clone());
+                }
+                tracing::info!(
+                    prefix = %deal.prefix,
+                    holder = %record.holder,
+                    kind = %record.kind,
+                    "реестр подтвердил сеть"
+                );
+            }
+            Ok(None) => {
+                return Err(format!(
+                    "network {} is not found in the registry — check the address",
+                    deal.prefix
+                ));
+            }
+            Err(e) => {
+                tracing::warn!(prefix = %deal.prefix, error = %e, "реестр недоступен");
+            }
+        }
+    }
+
     // хэш нужен до отправки: по нему строится адрес карточки
     deal.assign_hash();
     let hash = deal.del_hash.clone();

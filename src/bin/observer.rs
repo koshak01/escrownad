@@ -149,10 +149,39 @@ async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
                 t,
             )
         });
-        let Some(t) = hit else {
-            continue;
+        // Второй источник: реестр по самой сети. Таблица трансферов
+        // обновляется с задержкой, а RDAP отвечает сразу — и работает не
+        // только для RIPE. Если держатель сменился после появления сделки,
+        // переход состоялся, даже когда строки в таблице ещё нет.
+        let key = match hit {
+            Some(t) => observer::match_key(kind, t),
+            None => {
+                let since = deal.del_dat.to_dt().date();
+                match observer::rdap::lookup(&deal.prefix).await {
+                    Ok(Some(record))
+                        if record.changed_hands_since(since, deal.from_org.as_deref()) =>
+                    {
+                        info!(
+                            deal = %deal.del_hash,
+                            prefix = %deal.prefix,
+                            holder = %record.holder,
+                            "реестр: держатель сменился"
+                        );
+                        format!(
+                            "RDAP|{}|{}|{}",
+                            record.last_changed.map(|d| d.to_string()).unwrap_or_default(),
+                            record.range,
+                            record.holder
+                        )
+                    }
+                    Ok(_) => continue,
+                    Err(e) => {
+                        warn!(deal = %deal.del_hash, error = %e, "реестр недоступен");
+                        continue;
+                    }
+                }
+            }
         };
-        let key = observer::match_key(kind, t);
         info!(
             deal = %deal.del_hash,
             prefix = %deal.prefix,
