@@ -149,6 +149,8 @@ pub enum DbCommand {
 
     // ── deals (proof-escrow) ────────────────────────────────────────────────
     ListDealsListed,
+    /// Lots whose verified asset is still being minted.
+    ListDealsMinting,
     ListDealsBoard,
     ListDealsForUser {
         usr_id: i64,
@@ -281,6 +283,7 @@ forge_ipc::client! {
 
         // deals
         pub fn list_deals_listed() -> Vec<models::Deal> = ListDealsListed -> Deals(v) = v;
+        pub fn list_deals_minting() -> Vec<models::Deal> = ListDealsMinting -> Deals(v) = v;
         pub fn list_deals_board() -> Vec<models::Deal> = ListDealsBoard -> Deals(v) = v;
         pub fn list_deals_for_user(usr_id: i64) -> Vec<models::Deal>
             = ListDealsForUser { usr_id } -> Deals(v) = v;

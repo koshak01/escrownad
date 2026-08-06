@@ -19,4 +19,5 @@
 //! would simply have moved from the seller onto us.
 
 pub mod core;
+pub mod crypto;
 pub mod types;

@@ -137,6 +137,78 @@ impl TransferVerdict {
     }
 }
 
+/// A lot, expressed as a verified asset.
+///
+/// One lot is one token: it stands for the right to a specific block, and it is
+/// issued the moment an operator approves the listing — before the lot ever
+/// reaches the board. Every transfer of it is gated by the identity check
+/// built into the token itself, so the asset cannot move to an unverified
+/// wallet even outside our platform.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AssetLaunch {
+    /// Chain name as their API spells it.
+    pub chain: String,
+    /// Human-readable name, e.g. `EscrowNad IP 194.246.124.0/23`.
+    pub token_name: String,
+    /// Short symbol, at most 12 characters.
+    pub token_symbol: String,
+    /// Six, to match every other token on this chain.
+    pub decimals: u8,
+    /// Wallet that will hold the admin role on the issued token.
+    pub admin_address: String,
+    /// Who is allowed to hold it — the same shape as a pool rule.
+    pub rule: AssetRule,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+}
+
+/// Who may hold or receive an asset.
+///
+/// Field names are theirs: the API layer is snake_case while the on-chain
+/// struct is camelCase, and the two mean the same thing.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AssetRule {
+    pub allowed_group: String,
+    pub allowed_sub_group: String,
+    /// Minimum trust tier. Their check is *greater than*, so 1 means "any
+    /// valid identity" rather than "tier at least 1".
+    pub min_tier: u8,
+    pub min_sub_tier: u8,
+    /// Deprecated on their side; always false.
+    pub is_black_list: bool,
+    /// ISO country codes; empty means no restriction.
+    pub countries: Vec<String>,
+}
+
+impl AssetRule {
+    /// Any wallet holding a valid identity, from anywhere.
+    ///
+    /// This market is international and the resource itself carries no
+    /// nationality — restricting by country would exclude legitimate holders
+    /// for no gain.
+    pub fn any_valid_identity() -> Self {
+        Self {
+            allowed_group: String::new(),
+            allowed_sub_group: String::new(),
+            min_tier: 1,
+            min_sub_tier: 0,
+            is_black_list: false,
+            countries: Vec::new(),
+        }
+    }
+}
+
+/// Where an issuance request has got to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IssueStatus {
+    /// Still being reviewed or minted.
+    Pending,
+    /// Done — the asset exists at this address.
+    Issued(String),
+    /// Refused or failed; the string carries their wording.
+    Failed(String),
+}
+
 #[derive(Debug, Error)]
 pub enum CleanverseError {
     #[error("integration not configured: fill in the `cleanverse` constant via /admin/constants/")]

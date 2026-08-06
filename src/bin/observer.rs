@@ -77,6 +77,62 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
+/// Finishes what approval started: asks whether the lot's asset has been minted.
+///
+/// Issuance is asynchronous — the request goes out when an operator approves a
+/// listing, and their side reviews and mints afterwards. Somebody has to come
+/// back for the address, and the observer is already going round in a loop.
+///
+/// Nothing here is fatal. A pending request stays pending until the next round;
+/// a refused one is logged and the request cleared, so the lot stops being asked
+/// about. The listing itself is unaffected either way — a lot without an asset
+/// still trades.
+async fn finish_minting(db: &DbClient) {
+    let Ok(constants) = db.get_constants().await else {
+        return;
+    };
+    let Ok(Some(config)) = constants
+        .get::<escrownad::cleanverse::types::CleanverseConfig>(
+            escrownad::cleanverse::types::CLEANVERSE_CONSTANT,
+        )
+    else {
+        return;
+    };
+
+    let pending = match db.list_deals_minting().await {
+        Ok(deals) => deals,
+        Err(e) => {
+            warn!(error = %e, "could not list lots awaiting their asset");
+            return;
+        }
+    };
+
+    for mut deal in pending {
+        let Some(request_id) = deal.asset_request.clone() else {
+            continue;
+        };
+        match escrownad::cleanverse::core::issue_status(&config, &request_id).await {
+            Ok(escrownad::cleanverse::types::IssueStatus::Issued(address)) => {
+                info!(deal = %deal.del_hash, asset = %address, "asset issued");
+                deal.asset_token = Some(address);
+                deal.asset_request = None;
+                if let Err(e) = db.save_deal(deal).await {
+                    error!(error = %e, "could not store the asset address");
+                }
+            }
+            Ok(escrownad::cleanverse::types::IssueStatus::Failed(reason)) => {
+                warn!(deal = %deal.del_hash, %reason, "asset issuance failed — giving up on it");
+                deal.asset_request = None;
+                if let Err(e) = db.save_deal(deal).await {
+                    error!(error = %e, "could not clear the issuance request");
+                }
+            }
+            Ok(escrownad::cleanverse::types::IssueStatus::Pending) => {}
+            Err(e) => warn!(deal = %deal.del_hash, error = %e, "could not check issuance status"),
+        }
+    }
+}
+
 /// Reads the chain settings from the constants table.
 async fn load_chain_config(db: &DbClient) -> Option<ChainConfig> {
     let constants = match db.get_constants().await {
@@ -96,7 +152,10 @@ async fn load_chain_config(db: &DbClient) -> Option<ChainConfig> {
 }
 
 async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
-    // Open deals: funded / awaiting_proof (and listed for demo fixtures)
+    // Asset issuance is asynchronous — finish what approval started.
+    finish_minting(db).await;
+
+    // Open deals: funded / awaiting_proof
     let deals = db
         .list_deals_listed()
         .await

@@ -182,6 +182,67 @@ pub async fn build_card(deal: &Deal) -> ModerationCard {
     }
 }
 
+/// Issues the lot as a verified asset, once an operator has approved it.
+///
+/// This is the point their track calls "compliance embedded from the issuance
+/// stage": the asset comes into existence with its transfer rules already
+/// attached, before the lot is visible to anyone.
+///
+/// The name deliberately carries the **lot number and size, not the network**.
+/// A token's metadata is public on chain, and the exact network is what a buyer
+/// pays to learn — putting it in the name would give away the one thing the
+/// deposit is for.
+///
+/// Failure is not fatal: the lot goes on the board regardless. An asset that
+/// did not mint is worth a log line and a retry, not a listing held hostage.
+///
+/// # Parameters
+/// * `deal` — the approved lot
+///
+/// # Returns
+/// * `Some(request_id)` — issuance accepted, minting is under way
+/// * `None` — not configured, or their side refused
+pub async fn issue_asset(deal: &crate::models::Deal) -> Option<String> {
+    let constants = app_context().db.get_constants().await.ok()?;
+    let config: crate::cleanverse::types::CleanverseConfig = constants
+        .get(crate::cleanverse::types::CLEANVERSE_CONSTANT)
+        .ok()??;
+    let chain = chain_config().await?;
+    let admin = chain.treasury.trim();
+    if admin.is_empty() {
+        tracing::warn!("asset issuance skipped: no admin address in the chain constant");
+        return None;
+    }
+
+    let no = deal.public_no();
+    let size = deal
+        .prefix
+        .rsplit_once('/')
+        .map(|(_, bits)| format!("/{}", bits.trim()))
+        .unwrap_or_default();
+    let launch = crate::cleanverse::types::AssetLaunch {
+        chain: crate::cleanverse::types::CHAIN_NAME.to_string(),
+        token_name: format!("EscrowNad {} lot {no} {size}", deal.rir).trim_end().into(),
+        // At most 12 characters, letters and digits only.
+        token_symbol: format!("EN{}", no.replace('-', "")),
+        decimals: 6,
+        admin_address: admin.to_string(),
+        rule: crate::cleanverse::types::AssetRule::any_valid_identity(),
+        icon: None,
+    };
+
+    match crate::cleanverse::core::launch_asset(&config, &launch).await {
+        Ok(request_id) => {
+            tracing::info!(deal = %deal.del_hash, %request_id, "asset issuance submitted");
+            Some(request_id)
+        }
+        Err(e) => {
+            tracing::warn!(deal = %deal.del_hash, error = %e, "asset issuance refused");
+            None
+        }
+    }
+}
+
 /// Chain settings out of the constants — a shared helper.
 async fn chain_config() -> Option<crate::chain::types::ChainConfig> {
     let constants = app_context().db.get_constants().await.ok()?;

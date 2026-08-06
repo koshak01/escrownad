@@ -206,6 +206,14 @@ async fn apply(decision: &Decision, actor: i64) -> Result<String, String> {
     let no = deal.public_no();
     let hash = deal.del_hash.clone();
 
+    // Approval is the moment the lot becomes a verified asset: the token is
+    // issued with its transfer rules attached, before anyone can see the lot.
+    // If issuance fails the listing still goes up — an asset that did not mint
+    // is worth a retry, not a lot held hostage.
+    if decision.approve && deal.asset_token.is_none() && deal.asset_request.is_none() {
+        deal.asset_request = crate::moderation::issue_asset(&deal).await;
+    }
+
     app_context()
         .db
         .save_deal(deal)

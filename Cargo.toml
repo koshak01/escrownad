@@ -65,6 +65,13 @@ ammonia     = "4"
 # provider-http + rpc-types + signer-local, over rustls as with reqwest.
 alloy       = "2"
 
+# Cleanverse encrypts the bodies of the endpoints that issue things — AES-256
+# in CBC with a fixed all-zero IV, keyed by our api-key. Their scheme, not our
+# choice. RustCrypto crates: no unsafe, no transitive weight.
+aes    = "0.8"
+cbc    = { version = "0.1", features = ["alloc"] }
+base64 = "0.22"
+
 # EVM wallet login (MetaMask personal_sign → ecrecover)
 k256  = { version = "0.13", features = ["ecdsa"] }
 sha3  = "0.10"

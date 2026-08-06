@@ -126,6 +126,23 @@ pub struct Deal {
     #[sqlx(rename = "del_declines")]
     pub declines: i16,
 
+    /// Issuance request for this lot's verified asset, while it is in flight.
+    ///
+    /// Minting is not instant: the request is submitted when an operator
+    /// approves the listing, and the address only exists once their side has
+    /// reviewed and minted it.
+    #[db(rename = "del_asset_request")]
+    #[sqlx(rename = "del_asset_request")]
+    pub asset_request: Option<String>,
+    /// Address of the verified asset standing for this lot, once issued.
+    ///
+    /// The token carries the identity check inside itself: it cannot be
+    /// transferred to a wallet without a valid identity, on this platform or
+    /// anywhere else.
+    #[db(rename = "del_asset_token")]
+    #[sqlx(rename = "del_asset_token")]
+    pub asset_token: Option<String>,
+
     pub del_is_enable: bool,
 
     /// Created at (DB default). Used for “listed for” age on the market board.
@@ -340,6 +357,16 @@ impl Deal {
     /// Observer: only after USDC in lock.
     pub async fn list_open(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
         forge_db::sqlx::query_as::<_, Deal>(include_str!("../../sqls/deals_list_open.sql"))
+            .fetch_all(pool)
+            .await
+    }
+
+    /// Lots whose verified asset has been requested but not yet minted.
+    ///
+    /// Issuance is asynchronous, so somebody has to come back and check. The
+    /// observer does it on the same round it watches the registry.
+    pub async fn list_minting(pool: &PgPool) -> forge_db::sqlx::Result<Vec<Self>> {
+        forge_db::sqlx::query_as::<_, Deal>(include_str!("../../sqls/deals_list_minting.sql"))
             .fetch_all(pool)
             .await
     }

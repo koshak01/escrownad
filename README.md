@@ -6,16 +6,11 @@ If the registry never shows the transfer, the money never moves. Neither the sel
 
 ## Links
 
-| | |
-|---|---|
-| Live site | https://escrownad.com |
-| Public deal board | https://escrownad.com/deals/ |
-| Oracle page | https://escrownad.com/oracle/ |
-| Escrow contract — Monad testnet (chain id 10143), source verified | `0x4c9A68831E51853b981EF3e2f1461cdD46430da4` |
-| Contract in the explorer | https://testnet.monadexplorer.com/address/0x4c9A68831E51853b981EF3e2f1461cdD46430da4 |
-| Insurance fund (separate address, balance readable by anyone) | `0xe8b8C85e929b67C91c42a793670A88c6d563A962` |
-| Settlement asset — USDC by Circle, Monad testnet | `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
-| What comes next | [ROADMAP.md](ROADMAP.md) |
+- **Live site** — [escrownad.com](https://escrownad.com) · [deal board](https://escrownad.com/deals/) · [oracle](https://escrownad.com/oracle/)
+- **Escrow contract** — [`0x4c9A6883…30da4`](https://testnet.monadexplorer.com/address/0x4c9A68831E51853b981EF3e2f1461cdD46430da4) on Monad testnet (chain id 10143), source verified
+- **Insurance fund** — [`0xe8b8C85e…3A962`](https://testnet.monadexplorer.com/address/0xe8b8C85e929b67C91c42a793670A88c6d563A962), a separate address whose balance anyone can read
+- **Settlement asset** — [`0x534b2f3A…943A3`](https://testnet.monadexplorer.com/address/0x534b2f3A21130d7a60830c2Df862319e593943A3), USDC by Circle
+- **What comes next** — [ROADMAP.md](ROADMAP.md)
 
 Native MON is used for gas only. All settlement is in USDC.
 
