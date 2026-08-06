@@ -3,7 +3,6 @@ name = "escrownad"
 description = "EscrowNad — proof-escrow / oracle-escrow on Monad (RIPE first); forge UI; escrownad.com"
 version = "0.1.0"
 edition = "2024"
-authors = ["koshak01 <p.elagin@gmail.com>"]
 license = "MIT"
 
 # Four binaries talking over unix sockets.
