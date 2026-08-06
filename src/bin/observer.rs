@@ -36,30 +36,30 @@ async fn run() -> Result<()> {
         .context("wait database")?;
     info!(socket = sockets::DATABASE, "database ready");
 
-    // Настройки цепи живут в константе `chain` (таблица constants),
-    // правятся через /admin/constants/ — ни окружения, ни файлов.
-    // Наблюдателю, в отличие от остальных бинарников, нужен приватный ключ.
-    // Нет ключа — не падаем, а работаем в mock и говорим об этом громко:
-    // сервис должен пережить неполную конфигурацию, а не уйти в крашлуп.
+    // Chain settings live in the `chain` constant and are edited through
+    // /admin/constants/ — no environment variables, no files. Unlike the other
+    // binaries, the observer needs a private key. Without one we do not die:
+    // we run in mock and say so loudly. A service should survive an incomplete
+    // configuration rather than fall into a crash loop.
     let chain = match load_chain_config(&db).await {
         Some(config) if config.mode().is_live() => match ObserverChain::new(config) {
             Ok(c) => match c.observer_address() {
                 Ok(addr) => {
-                    info!(observer = %addr, "цепь: живой режим");
+                    info!(observer = %addr, "chain: live mode");
                     Some(c)
                 }
                 Err(e) => {
-                    warn!(error = %e, "ключ наблюдателя не разбирается — работаю в mock");
+                    warn!(error = %e, "observer key does not parse — running in mock");
                     None
                 }
             },
             Err(e) => {
-                warn!(error = %e, "цепь настроена не полностью — работаю в mock");
+                warn!(error = %e, "chain configuration incomplete — running in mock");
                 None
             }
         },
         _ => {
-            warn!("цепь: режим mock — выпуск денег не отправляется в сеть");
+            warn!("chain: mock mode — releases are not sent to the network");
             None
         }
     };
@@ -77,12 +77,12 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
-/// Читает настройки цепи из констант базы.
+/// Reads the chain settings from the constants table.
 async fn load_chain_config(db: &DbClient) -> Option<ChainConfig> {
     let constants = match db.get_constants().await {
         Ok(c) => c,
         Err(e) => {
-            warn!(error = %e, "не прочитал константы — цепь недоступна");
+            warn!(error = %e, "could not read the constants — chain unavailable");
             return None;
         }
     };
@@ -137,8 +137,8 @@ async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
             ResourceKind::Pi => &pi,
             ResourceKind::Pa => &pa,
         };
-        // Переход, случившийся до появления сделки, нам не годится:
-        // оракул ждёт НОВУЮ запись по этой сети.
+        // A transfer that happened before the deal existed is of no use:
+        // the oracle waits for a NEW row against this network.
         let since = Some(deal.del_dat.to_dt().date());
         let hit = table.iter().find(|t| {
             observer::match_deal(
@@ -149,10 +149,10 @@ async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
                 t,
             )
         });
-        // Второй источник: реестр по самой сети. Таблица трансферов
-        // обновляется с задержкой, а RDAP отвечает сразу — и работает не
-        // только для RIPE. Если держатель сменился после появления сделки,
-        // переход состоялся, даже когда строки в таблице ещё нет.
+        // Second source: the registry queried on the network itself. The
+        // transfer table lags, whereas RDAP answers immediately — and works
+        // beyond RIPE. If the holder changed after the deal appeared, the
+        // transfer happened, even while the table still shows nothing.
         let key = match hit {
             Some(t) => observer::match_key(kind, t),
             None => {
@@ -165,18 +165,21 @@ async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
                             deal = %deal.del_hash,
                             prefix = %deal.prefix,
                             holder = %record.holder,
-                            "реестр: держатель сменился"
+                            "registry: the holder changed"
                         );
                         format!(
                             "RDAP|{}|{}|{}",
-                            record.last_changed.map(|d| d.to_string()).unwrap_or_default(),
+                            record
+                                .last_changed
+                                .map(|d| d.to_string())
+                                .unwrap_or_default(),
                             record.range,
                             record.holder
                         )
                     }
                     Ok(_) => continue,
                     Err(e) => {
-                        warn!(deal = %deal.del_hash, error = %e, "реестр недоступен");
+                        warn!(deal = %deal.del_hash, error = %e, "registry unreachable");
                         continue;
                     }
                 }
@@ -186,34 +189,52 @@ async fn tick(db: &DbClient, chain: Option<&ObserverChain>) -> Result<u32> {
             deal = %deal.del_hash,
             prefix = %deal.prefix,
             key = %key,
-            "совпадение с реестром RIPE"
+            "matched a RIPE registry row"
         );
 
         let release_tx = match chain {
             Some(chain) => {
-                // Не верим базе: деньги должны реально лежать в замке.
-                match chain.deal_state(&deal.del_hash).await {
-                    Ok((LockState::Funded, amount)) => {
-                        info!(deal = %deal.del_hash, %amount, "замок оплачен — выпускаю");
+                // We do not trust the database: the money must really be in the
+                // lock, and it must be about to go to the seller of this
+                // listing. `fund` takes the seller as an argument, chosen by
+                // whoever paid — so a mismatch means the money would land on a
+                // stranger's address. Releasing then is worse than waiting.
+                match chain.locked_deal(&deal.del_hash).await {
+                    Ok(locked) if locked.state == LockState::Funded => {
+                        let listed_seller = deal.seller_wallet.as_deref().unwrap_or_default();
+                        if !locked.seller_is(listed_seller) {
+                            error!(
+                                deal = %deal.del_hash,
+                                on_chain = %locked.seller,
+                                listed = %listed_seller,
+                                "the contract names a different seller — release refused"
+                            );
+                            continue;
+                        }
+                        info!(
+                            deal = %deal.del_hash,
+                            amount = locked.amount,
+                            "lock is funded — releasing"
+                        );
                     }
-                    Ok((state, _)) => {
+                    Ok(locked) => {
                         warn!(
                             deal = %deal.del_hash,
-                            state = state.as_str(),
-                            "в цепи не funded — выпуск пропущен"
+                            state = locked.state.as_str(),
+                            "not funded on chain — release skipped"
                         );
                         continue;
                     }
                     Err(e) => {
-                        error!(deal = %deal.del_hash, error = %e, "не прочитал состояние замка");
+                        error!(deal = %deal.del_hash, error = %e, "could not read the lock state");
                         continue;
                     }
                 }
                 match chain.release(&deal.del_hash, &key).await {
                     Ok(tx) => tx,
                     Err(e) => {
-                        // статус сделки не меняем — попробуем на следующем круге
-                        error!(deal = %deal.del_hash, error = %e, "выпуск не прошёл");
+                        // leave the deal status alone — we will retry next round
+                        error!(deal = %deal.del_hash, error = %e, "release failed");
                         continue;
                     }
                 }

@@ -5,7 +5,7 @@
 {% block content %}
 <main class="app-main">
 
-  {# ── панель: назад · номер лота · действия ───────────────────────── #}
+  {# ── bar: back · lot number · actions ────────────────────────────── #}
   <div class="deal-bar">
     <a class="deal-bar__back" href="/deals/">
       <span aria-hidden="true">←</span> Offers
@@ -20,6 +20,7 @@
       {% endif %}
       <span class="status status--{{ deal.del_status }}">{{ deal.del_status }}</span>
       {% if is_expired %}<span class="status status--expired">expired</span>{% endif %}
+      {% if declines > 0 %}<span class="status status--expired" title="Seller declined a deal before">{{ declines }} decline(s)</span>{% endif %}
     </div>
 
     <div class="deal-bar__actions">
@@ -27,13 +28,14 @@
       <form class="deal-bar__form">
         {{ <hidden name="hash" value={deal.del_hash} /> }}
         {{ <hidden name="action" value="publish" /> }}
-        {{ <button label="Publish" type="submit" handler="deals_action" variant="primary" /> }}
+        {{ <button label="Submit for review" type="submit" handler="deals_action" variant="primary" /> }}
       </form>
       {% endif %}
 
-      {# Живая цепь: покупка — это депозит. Кто первым положил деньги, тот и
-         купил; лот занимает контракт, а не наша база. Без цепи остаётся
-         старый путь через заявку и подтверждение продавцом. #}
+      {# On a live chain a purchase is a deposit. Whoever funds first has
+         bought it: the lot is claimed by the contract, not by our database.
+         Without a chain the older path remains — a request and the seller's
+         confirmation. #}
       {% if deal.del_status == "listed" and not is_creator and not is_expired and not chain_ready %}
       <form class="deal-bar__form">
         {{ <hidden name="hash" value={deal.del_hash} /> }}
@@ -58,7 +60,40 @@
       </form>
       {% endif %}
 
-      {% if chain_ready and not is_creator and not is_expired and (deal.del_status == "listed" or deal.del_status == "requested" or deal.del_status == "accepted") %}
+      {# Take the lot: it leaves the board and is held for the buyer until
+         the seller confirms the deal. #}
+      {% if deal.del_status == "listed" and not is_creator and not is_expired %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="take" /> }}
+        {{ <button label="Take this lot" type="submit" handler="deals_action" variant="primary" /> }}
+      </form>
+      {% endif %}
+
+      {# The seller decides the fate of the hold. #}
+      {% if deal.del_status == "reserved" and is_creator %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="confirm_deal" /> }}
+        {{ <button label="Confirm sale" type="submit" handler="deals_action" variant="primary" /> }}
+      </form>
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="decline_deal" /> }}
+        {{ <button label="Decline" type="submit" handler="deals_action" /> }}
+      </form>
+      {% endif %}
+
+      {# The hold has expired — either side may return the lot to the board. #}
+      {% if deal.del_status == "reserved" and reserve_expired and is_party %}
+      <form class="deal-bar__form">
+        {{ <hidden name="hash" value={deal.del_hash} /> }}
+        {{ <hidden name="action" value="release_reserve" /> }}
+        {{ <button label="Release reservation" type="submit" handler="deals_action" /> }}
+      </form>
+      {% endif %}
+
+      {% if chain_ready and not is_creator and not is_expired and deal.del_status == "accepted" %}
         <button type="button" class="app-top__cta app-top__cta--solid"
                 data-escrow-pay
                 data-hash="{{ deal.del_hash }}"
@@ -74,11 +109,14 @@
                 data-deadline="{{ chain.deadline }}">
           Deposit {{ price_raw | fixed_n(scale=8) }} USDC
         </button>
-      {% elif deal.del_status == "accepted" and is_buyer %}
+      {# The stand-in payment, for running without a chain. Shown only when
+         there is no chain at all — with one configured, paying means paying,
+         and the button above is the only way. #}
+      {% elif not chain_ready and deal.del_status == "accepted" and is_buyer %}
         <form class="deal-bar__form">
           {{ <hidden name="hash" value={deal.del_hash} /> }}
           {{ <hidden name="action" value="fund" /> }}
-          {{ <button label="Deposit USDC (mock)" type="submit" handler="deals_action" variant="primary" /> }}
+          {{ <button label="Deposit USDC (local run)" type="submit" handler="deals_action" variant="primary" /> }}
         </form>
       {% endif %}
 
@@ -116,7 +154,7 @@
     </div>
   </div>
 
-  {# ── плитки ──────────────────────────────────────────────────────── #}
+  {# ── tiles ───────────────────────────────────────────────────────── #}
   <div class="deal-grid">
 
     <section class="tile tile--price">
@@ -143,6 +181,24 @@
       </span>
     </section>
 
+    {% if deal.del_status == "reserved" %}
+    <section class="tile tile--price">
+      <span class="tile__label">Reserved</span>
+      <span class="tile__value mono">{{ reserved_until }}</span>
+      <span class="tile__sub">
+        {% if reserve_expired %}
+          reservation expired — the lot can go back to the board
+        {% elif is_buyer %}
+          the lot is held for you until the seller confirms
+        {% elif is_creator %}
+          a buyer is waiting for your answer
+        {% else %}
+          taken by another buyer
+        {% endif %}
+      </span>
+    </section>
+    {% endif %}
+
     <section class="tile">
       <span class="tile__label">Timing</span>
       <span class="tile__value mono">{{ created_at }}</span>
@@ -150,7 +206,7 @@
     </section>
   </div>
 
-  {# ── описание ────────────────────────────────────────────────────── #}
+  {# ── description ─────────────────────────────────────────────────── #}
   <section class="card">
     <h2 class="card__title">Description</h2>
     <div class="rich">{{ deal.del_title | default(value="—") | safe }}</div>
@@ -163,7 +219,7 @@
   </section>
   {% endif %}
 
-  {# ── стороны и цепь ──────────────────────────────────────────────── #}
+  {# ── parties and chain ───────────────────────────────────────────── #}
   <div class="deal-grid deal-grid--wide">
     <section class="card">
       <h2 class="card__title">Parties</h2>

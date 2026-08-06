@@ -1,8 +1,8 @@
-//! Работа с EscrowLock на Monad: подпись и отправка release/refund,
-//! чтение состояния сделки, конверсия сумм.
+//! Working with EscrowLock on Monad: signing and sending release and refund,
+//! reading deal state, converting amounts.
 //!
-//! Fund делает покупатель из браузера своим кошельком — здесь только то,
-//! что подписывает наблюдатель.
+//! Funding is done by the buyer from the browser with their own wallet — this
+//! file holds only what the observer signs.
 
 use std::str::FromStr;
 
@@ -15,7 +15,8 @@ use forge_fixed_n::FixedN;
 use tracing::{info, instrument, warn};
 
 use crate::chain::types::{
-    ChainConfig, ChainError, FIXED_N_TO_USDC_DIVISOR, LockState, REQUIRED_CONFIRMATIONS,
+    ChainConfig, ChainError, FIXED_N_TO_USDC_DIVISOR, LockState, LockedDeal,
+    REQUIRED_CONFIRMATIONS,
 };
 
 sol! {
@@ -49,18 +50,19 @@ sol! {
     }
 }
 
-/// Идентификатор сделки в контракте — `bytes32` из постоянного хэша.
+/// The deal's identifier in the contract — `bytes32` derived from its permanent hash.
 ///
-/// В цепь уходит только отпечаток: ни префикса сети, ни названий
-/// организаций, ни описания лота там нет.
+/// Only the fingerprint goes on chain: no network prefix, no organisation
+/// names, no listing text.
 pub fn deal_id(del_hash: &str) -> B256 {
     B256::from_slice(&hex_to_bytes32(&sha256_hex(del_hash.as_bytes())))
 }
 
-/// Отпечаток условия сделки — что именно должен показать реестр.
+/// Fingerprint of the deal's condition — what exactly the registry must show.
 ///
-/// Считается из предмета сделки (ресурс, вид, стороны перехода). В цепи
-/// лежит только хэш, сами данные остаются в базе.
+/// Derived from the subject of the deal (resource, kind, parties to the
+/// transfer). Only the hash lives on chain; the data itself stays in the
+/// database.
 pub fn condition_hash(prefix: &str, kind: &str, from_org: &str, to_org: &str) -> B256 {
     let key = format!(
         "{}|{}|{}|{}",
@@ -72,8 +74,8 @@ pub fn condition_hash(prefix: &str, kind: &str, from_org: &str, to_org: &str) ->
     B256::from_slice(&hex_to_bytes32(&sha256_hex(key.as_bytes())))
 }
 
-/// Ключ факта RIPE в виде `bytes32` — пишется в событие `Released`
-/// как доказательство того, по какой строке реестра выпущены деньги.
+/// The registry fact key as `bytes32` — written into the `Released` event as
+/// proof of which registry row the money was released against.
 pub fn ripe_key_hash(ripe_key: &str) -> B256 {
     B256::from_slice(&hex_to_bytes32(&sha256_hex(ripe_key.as_bytes())))
 }
@@ -90,18 +92,17 @@ fn hex_to_bytes32(hex: &str) -> [u8; 32] {
     out
 }
 
-/// Переводит сумму приложения (`FixedN<8>`) в базовые единицы USDC (6 знаков).
+/// Converts an application amount (`FixedN<8>`) into USDC base units (6 decimals).
 ///
-/// Деньги не округляются молча: если значение мельче одной базовой единицы
-/// USDC (0.000001), возвращается ошибка — лучше отказ, чем тихо потерянные
-/// доли.
+/// Money is never rounded silently: a value finer than one USDC base unit
+/// (0.000001) returns an error. A refusal beats quietly losing fractions.
 ///
-/// # Параметры
-/// * `amount` — сумма сделки в денежном типе приложения
+/// # Parameters
+/// * `amount` — the deal amount in the application's money type
 ///
-/// # Возвращает
-/// * `Ok(U256)` — сумма в базовых единицах USDC
-/// * `Err(_)` — отрицательная сумма или потеря точности
+/// # Returns
+/// * `Ok(U256)` — the amount in USDC base units
+/// * `Err(_)` — a negative amount, or a loss of precision
 pub fn usdc_units(amount: FixedN<8>) -> Result<U256, ChainError> {
     let raw = amount.raw();
     if raw < 0 {
@@ -113,10 +114,11 @@ pub fn usdc_units(amount: FixedN<8>) -> Result<U256, ChainError> {
     Ok(U256::from(raw / FIXED_N_TO_USDC_DIVISOR))
 }
 
-/// Чтение состояния замка без приватного ключа.
+/// Reading lock state without a private key.
 ///
-/// Живёт в ws-демоне: тому нужно лишь убедиться, что деньги действительно
-/// в замке. Ключ наблюдателя в ws не попадает — подписывать там нечего.
+/// Lives in the ws daemon, which only needs to confirm that the money really
+/// is in the lock. The observer's key never reaches ws — there is nothing to
+/// sign there.
 pub struct ChainReader {
     rpc_url: String,
     lock: Address,
@@ -125,8 +127,8 @@ pub struct ChainReader {
 }
 
 impl ChainReader {
-    /// Собирает читателя из настроек цепи (константа `chain` в базе).
-    /// `None`, если цепь не в живом режиме или адрес замка не разобрался.
+    /// Builds a reader from the chain settings (the `chain` constant).
+    /// `None` when the chain is not live, or the lock address does not parse.
     pub fn new(config: &ChainConfig) -> Option<Self> {
         if !config.mode().is_live() {
             return None;
@@ -143,25 +145,25 @@ impl ChainReader {
         })
     }
 
-    /// Баланс любого адреса: USDC и родная монета сети.
+    /// Balance of any address: USDC and the chain's native coin.
     ///
-    /// Нужно оператору при модерации: видно, чем человек располагает и
-    /// похож ли кошелёк на пустой одноразовый.
+    /// Needed by the operator during review: it shows what the person holds
+    /// and whether the wallet looks like an empty throwaway.
     ///
-    /// # Возвращает
-    /// * `(usdc, native)` в базовых единицах: USDC 6 знаков, MON 18
+    /// # Returns
+    /// * `(usdc, native)` in base units: USDC has 6 decimals, MON has 18
     pub async fn wallet_balances(&self, who: &str) -> Result<(U256, U256), ChainError> {
         let addr = Address::from_str(who.trim()).map_err(|_| ChainError::BadAddress {
             what: "wallet",
             value: who.to_string(),
         })?;
-        let usdc = self.usdc.ok_or_else(|| {
-            ChainError::Config("в константе `chain` нет адреса usdc".into())
-        })?;
+        let usdc = self
+            .usdc
+            .ok_or_else(|| ChainError::Config("the `chain` constant has no usdc address".into()))?;
         let url = self
             .rpc_url
             .parse()
-            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
+            .map_err(|e| ChainError::Config(format!("chain.rpc does not parse: {e}")))?;
         let provider = ProviderBuilder::new().connect_http(url);
         let token = IERC20::new(usdc, &provider);
         let usdc_balance = token
@@ -176,27 +178,28 @@ impl ChainReader {
         Ok((usdc_balance, native))
     }
 
-    /// Баланс страхового фонда в USDC — как он есть в цепи.
+    /// Insurance fund balance in USDC, as it stands on chain.
     ///
-    /// Фонд лежит на отдельном адресе, поэтому сумма не «по нашим данным»,
-    /// а проверяемая: любой может открыть эксплорер и увидеть то же самое.
+    /// The fund sits at a separate address, so the figure is not "according
+    /// to our records" but checkable: anyone can open the explorer and see the
+    /// same number.
     ///
-    /// # Возвращает
-    /// * `Ok(U256)` — баланс в базовых единицах USDC
-    /// * `Err(_)` — сеть недоступна или адреса не настроены
+    /// # Returns
+    /// * `Ok(U256)` — the balance in USDC base units
+    /// * `Err(_)` — the network is unreachable, or the addresses are unset
     pub async fn insurance_balance(&self) -> Result<U256, ChainError> {
         let (usdc, fund) = match (self.usdc, self.insurance) {
             (Some(u), Some(f)) => (u, f),
             _ => {
                 return Err(ChainError::Config(
-                    "в константе `chain` нет usdc или insurance".into(),
+                    "the `chain` constant has no usdc or insurance address".into(),
                 ));
             }
         };
         let url = self
             .rpc_url
             .parse()
-            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
+            .map_err(|e| ChainError::Config(format!("chain.rpc does not parse: {e}")))?;
         let provider = ProviderBuilder::new().connect_http(url);
         let token = IERC20::new(usdc, &provider);
         let balance = token
@@ -207,12 +210,21 @@ impl ChainReader {
         Ok(balance)
     }
 
-    /// Состояние сделки в замке: статус и сумма.
+    /// Deal state in the lock: status and amount.
     pub async fn deal_state(&self, del_hash: &str) -> Result<(LockState, U256), ChainError> {
+        let d = self.locked_deal(del_hash).await?;
+        Ok((d.state, U256::from(d.amount)))
+    }
+
+    /// The whole record the contract holds, parties included.
+    ///
+    /// Use this wherever a decision depends on **who** paid or **who** gets
+    /// paid — the state and the amount alone cannot answer that.
+    pub async fn locked_deal(&self, del_hash: &str) -> Result<LockedDeal, ChainError> {
         let url = self
             .rpc_url
             .parse()
-            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
+            .map_err(|e| ChainError::Config(format!("chain.rpc does not parse: {e}")))?;
         let provider = ProviderBuilder::new().connect_http(url);
         let contract = IEscrowLock::new(self.lock, &provider);
         let d = contract
@@ -220,40 +232,45 @@ impl ChainReader {
             .call()
             .await
             .map_err(|e| ChainError::Rpc(format!("deals: {e}")))?;
-        Ok((LockState::from_u8(d.state), d.amount))
+        Ok(LockedDeal {
+            state: LockState::from_u8(d.state),
+            amount: d.amount.to::<u128>(),
+            seller: format!("{:#x}", d.seller),
+            buyer: format!("{:#x}", d.buyer),
+        })
     }
 }
 
-/// Клиент цепи с ключом наблюдателя.
+/// Chain client holding the observer's key.
 pub struct ObserverChain {
     config: ChainConfig,
     lock: Address,
 }
 
 impl ObserverChain {
-    /// Собирает клиента подписи из настроек цепи.
+    /// Builds a signing client from the chain settings.
     ///
-    /// # Параметры
-    /// * `config` — значение константы `chain` из базы
+    /// # Parameters
+    /// * `config` — the value of the `chain` constant
     ///
-    /// # Возвращает
-    /// * `Ok(_)` — есть и адрес замка, и ключ наблюдателя
-    /// * `Err(_)` — чего-то не хватает, с указанием что именно
+    /// # Returns
+    /// * `Ok(_)` — both the lock address and the observer key are present
+    /// * `Err(_)` — something is missing, naming what
     pub fn new(config: ChainConfig) -> Result<Self, ChainError> {
         config.require_observer_key()?;
         let lock = parse_address("chain.lock", &config.lock)?;
         Ok(Self { config, lock })
     }
 
-    /// Адрес наблюдателя, выведенный из приватного ключа.
+    /// The observer's address, derived from the private key.
     pub fn observer_address(&self) -> Result<Address, ChainError> {
         Ok(self.signer()?.address())
     }
 
     fn signer(&self) -> Result<PrivateKeySigner, ChainError> {
         PrivateKeySigner::from_str(self.config.observer_key.trim()).map_err(|e| {
-            // текст ключа в лог не попадает
-            ChainError::Config(format!("chain.observer_key не разбирается: {e}"))
+            // the key material never reaches the log
+            ChainError::Config(format!("chain.observer_key does not parse: {e}"))
         })
     }
 
@@ -263,22 +280,22 @@ impl ObserverChain {
             .config
             .rpc
             .parse()
-            .map_err(|e| ChainError::Config(format!("chain.rpc не разбирается: {e}")))?;
+            .map_err(|e| ChainError::Config(format!("chain.rpc does not parse: {e}")))?;
         Ok(ProviderBuilder::new().wallet(signer).connect_http(url))
     }
 
-    /// Выпускает деньги продавцу после совпадения с фактом RIPE.
+    /// Releases the money to the seller once the registry fact matched.
     ///
-    /// Ждёт подтверждения на глубину `REQUIRED_CONFIRMATIONS` и проверяет
-    /// статус исполнения: на Monad попадание в блок ещё не значит успех.
+    /// Waits `REQUIRED_CONFIRMATIONS` deep and checks the execution status:
+    /// on Monad, landing in a block does not yet mean success.
     ///
-    /// # Параметры
-    /// * `del_hash` — постоянный хэш сделки
-    /// * `ripe_key` — ключ найденной строки реестра
+    /// # Parameters
+    /// * `del_hash` — the deal's permanent hash
+    /// * `ripe_key` — key of the registry row that matched
     ///
-    /// # Возвращает
-    /// * `Ok(String)` — хэш подтверждённой транзакции
-    /// * `Err(_)` — сеть недоступна или транзакция откатилась
+    /// # Returns
+    /// * `Ok(String)` — hash of the confirmed transaction
+    /// * `Err(_)` — the network is unreachable, or the transaction reverted
     #[instrument(skip(self), fields(deal = %del_hash))]
     pub async fn release(&self, del_hash: &str, ripe_key: &str) -> Result<String, ChainError> {
         let provider = self.provider()?;
@@ -299,14 +316,14 @@ impl ObserverChain {
 
         let tx_hash = receipt.transaction_hash.to_string();
         if !receipt.status() {
-            warn!(tx = %tx_hash, "release отклонён при исполнении");
+            warn!(tx = %tx_hash, "release reverted during execution");
             return Err(ChainError::TxReverted { tx_hash });
         }
-        info!(tx = %tx_hash, gas = receipt.gas_used, "release подтверждён");
+        info!(tx = %tx_hash, gas = receipt.gas_used, "release confirmed");
         Ok(tx_hash)
     }
 
-    /// Возвращает деньги покупателю (факта нет, серая зона).
+    /// Returns the money to the buyer (no fact, or a grey area).
     #[instrument(skip(self), fields(deal = %del_hash))]
     pub async fn refund(&self, del_hash: &str) -> Result<String, ChainError> {
         let provider = self.provider()?;
@@ -328,16 +345,28 @@ impl ObserverChain {
         if !receipt.status() {
             return Err(ChainError::TxReverted { tx_hash });
         }
-        info!(tx = %tx_hash, "refund подтверждён");
+        info!(tx = %tx_hash, "refund confirmed");
         Ok(tx_hash)
     }
 
-    /// Читает состояние сделки в контракте.
+    /// Reads the deal's state from the contract.
     ///
-    /// Нужно перед выпуском: деньги должны реально лежать в замке, а не
-    /// «по мнению базы».
+    /// Needed before releasing: the money must actually be in the lock, not
+    /// merely so according to our database.
     #[instrument(skip(self), fields(deal = %del_hash))]
     pub async fn deal_state(&self, del_hash: &str) -> Result<(LockState, U256), ChainError> {
+        let d = self.locked_deal(del_hash).await?;
+        Ok((d.state, U256::from(d.amount)))
+    }
+
+    /// The whole record the contract holds, parties included.
+    ///
+    /// The observer checks the seller against it before releasing: `fund` takes
+    /// the seller as an argument, so a buyer could name any address at all.
+    /// Paying out to whoever the payer chose, without comparing against the
+    /// listing, would hand the money to a stranger.
+    #[instrument(skip(self), fields(deal = %del_hash))]
+    pub async fn locked_deal(&self, del_hash: &str) -> Result<LockedDeal, ChainError> {
         let provider = self.provider()?;
         let contract = IEscrowLock::new(self.lock, &provider);
         let d = contract
@@ -345,7 +374,12 @@ impl ObserverChain {
             .call()
             .await
             .map_err(|e| ChainError::Rpc(format!("deals: {e}")))?;
-        Ok((LockState::from_u8(d.state), d.amount))
+        Ok(LockedDeal {
+            state: LockState::from_u8(d.state),
+            amount: d.amount.to::<u128>(),
+            seller: format!("{:#x}", d.seller),
+            buyer: format!("{:#x}", d.buyer),
+        })
     }
 }
 

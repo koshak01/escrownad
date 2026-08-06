@@ -16,7 +16,7 @@ pub struct DealSearchParams {
     /// all | mine | arbitration
     #[serde(default)]
     pub scope: Option<String>,
-    /// offer | request | пусто = обе
+    /// offer | request | empty = both
     #[serde(default)]
     pub side: Option<String>,
 }
@@ -29,18 +29,18 @@ struct RowsView {
     total: usize,
 }
 
-/// Живой поиск по доске: сервер отдаёт готовые строки таблицы.
+/// Live search on the board: the server returns ready-made table rows.
 ///
-/// Клиент шлёт запрос на каждый ввод символа, сервер рендерит партиал и
-/// возвращает его для замены `#board-rows` + новый адрес для истории.
-/// Никаких кнопок «Найти» — таблица обновляется по мере набора.
+/// The client sends a request on every keystroke; the server renders a partial
+/// and returns it to replace `#board-rows`, plus a new URL for history. There
+/// is no "Search" button — the table updates as you type.
 ///
-/// # Параметры
-/// * `p` — строка поиска, набор и сторона
-/// * `actor_usr_id` — текущий пользователь (для «моих» и «арбитража»)
+/// # Parameters
+/// * `p` — the query string, the set and the side
+/// * `actor_usr_id` — the current user (for "mine" and "arbitration")
 ///
-/// # Возвращает
-/// * `ActionResp` — замена строк таблицы и счётчика + push_url
+/// # Returns
+/// * `ActionResp` — replacement rows and counter, plus push_url
 pub async fn deals_search(
     p: DealSearchParams,
     actor_usr_id: Option<i64>,
@@ -75,7 +75,7 @@ pub async fn deals_search(
             .map_err(|e| format!("render rows: {e}"))?
     };
 
-    // адрес синхронизируем, чтобы отфильтрованную доску можно было переслать
+    // keep the URL in sync so a filtered board can be shared as a link
     let mut params: Vec<String> = Vec::new();
     if scope != BoardScope::All {
         params.push(format!("scope={}", scope.as_str()));
@@ -100,7 +100,7 @@ pub async fn deals_search(
     Ok(resp)
 }
 
-/// Минимальное percent-кодирование для строки поиска в адресе.
+/// Minimal percent-encoding for the query string in a URL.
 fn urlencode(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     for b in raw.bytes() {
@@ -149,10 +149,10 @@ pub struct DealSaveParams {
     /// `offer` (sell) | `request` (buy demand).
     #[serde(default)]
     pub listing_side: Option<String>,
-    /// Гео блока — витрина, в поиске факта не участвует.
+    /// Where the block is — display only; takes no part in matching the fact.
     #[serde(default)]
     pub geo: Option<String>,
-    /// Региональный реестр: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
+    /// Regional registry: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
     #[serde(default)]
     pub rir: Option<String>,
     /// CIDR size without slash, e.g. "24".
@@ -160,19 +160,19 @@ pub struct DealSaveParams {
     pub size: Option<String>,
     #[serde(default)]
     pub is_public: Option<bool>,
-    /// Срок действия листинга, `YYYY-MM-DD` из `<date>`. Пусто → +31 день.
+    /// Listing expiry, `YYYY-MM-DD` from `<date>`. Empty → +31 days.
     #[serde(default)]
     pub deadline: Option<String>,
 }
 
-/// Разбирает дату из формы в конец указанных суток.
+/// Parses a date from the form into the end of that day.
 ///
-/// # Параметры
-/// * `raw` — строка `YYYY-MM-DD` из компонента `<date>`
+/// # Parameters
+/// * `raw` — a `YYYY-MM-DD` string from the `<date>` component
 ///
-/// # Возвращает
-/// * `Ok(Some(_))` — дата разобрана · `Ok(None)` — поле пустое ·
-///   `Err(_)` — формат не распознан
+/// # Returns
+/// * `Ok(Some(_))` — parsed · `Ok(None)` — the field was empty ·
+///   `Err(_)` — unrecognised format
 fn parse_deadline(raw: Option<&str>) -> Result<Option<forge_core::Timestamp>, String> {
     let Some(text) = raw.map(str::trim).filter(|s| !s.is_empty()) else {
         return Ok(None);
@@ -206,7 +206,10 @@ fn is_creator(deal: &Deal, actor: i64) -> bool {
 }
 
 /// Create/update market listing (offer = sell, request = buy demand).
-pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<ActionResp, String> {
+pub async fn deals_save(
+    p: DealSaveParams,
+    actor_usr_id: Option<i64>,
+) -> Result<ActionResp, String> {
     let actor = require_actor(actor_usr_id)?;
     let publish = p
         .publish
@@ -250,7 +253,7 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         }
     };
 
-    // wysiwyg отдаёт HTML — чистим по белому списку, иначе его нельзя выводить
+    // the wysiwyg returns HTML — clean it against a whitelist, else it cannot be rendered
     if let Some(v) = p.del_title {
         deal.del_title = crate::sanitize::rich_text(&v);
     }
@@ -277,18 +280,19 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
     if let Some(v) = p.prefix {
         let mut net = v.trim().to_string();
         // compose CIDR if network has no slash and size chip is set
-        if !net.contains('/') {
-            if let Some(sz) = p.size.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-                let sz = sz.trim_start_matches('/');
-                if sz.chars().all(|c| c.is_ascii_digit()) {
-                    net = format!("{net}/{sz}");
-                }
+        if !net.contains('/')
+            && let Some(sz) = p.size.as_deref().map(str::trim).filter(|s| !s.is_empty())
+        {
+            let sz = sz.trim_start_matches('/');
+            if sz.chars().all(|c| c.is_ascii_digit()) {
+                net = format!("{net}/{sz}");
             }
         }
         deal.prefix = net;
     }
-    // Гео и реестр — витрина. Организацию-владельца оракул ищет в реестре,
-    // поэтому она хранится отдельно и гео её не подменяет.
+    // Geography and registry are display fields. The holder organisation is
+    // what the oracle looks for in the registry, so it is stored separately and
+    // geography never stands in for it.
     if let Some(v) = p.geo {
         deal.geo = Some(v).filter(|s| !s.trim().is_empty());
     }
@@ -353,10 +357,10 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         deal.apply_action("publish", Some(actor), None)?;
     }
 
-    // Спрашиваем реестр о сети: держатель, тип ресурса и страна берутся
-    // оттуда, а не со слов продавца. Заодно это проверка, что сеть вообще
-    // существует. Реестр молчит — не мешаем публикации, просто оставляем
-    // введённое вручную.
+    // Ask the registry about the network: holder, resource type and country
+    // come from there rather than from the seller's word. It doubles as a check
+    // that the network exists at all. If the registry stays silent we do not
+    // block the listing — we simply keep what was typed in.
     if !deal.prefix.trim().is_empty() {
         match crate::observer::rdap::lookup(&deal.prefix).await {
             Ok(Some(record)) => {
@@ -368,8 +372,7 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
                 if !record.kind.is_empty() {
                     deal.resource_kind = record.kind.clone();
                 }
-                if deal.geo.as_deref().unwrap_or("").trim().is_empty()
-                    && !record.country.is_empty()
+                if deal.geo.as_deref().unwrap_or("").trim().is_empty() && !record.country.is_empty()
                 {
                     deal.geo = Some(record.country.clone());
                 }
@@ -377,7 +380,7 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
                     prefix = %deal.prefix,
                     holder = %record.holder,
                     kind = %record.kind,
-                    "реестр подтвердил сеть"
+                    "registry confirmed the network"
                 );
             }
             Ok(None) => {
@@ -387,12 +390,12 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
                 ));
             }
             Err(e) => {
-                tracing::warn!(prefix = %deal.prefix, error = %e, "реестр недоступен");
+                tracing::warn!(prefix = %deal.prefix, error = %e, "registry unreachable");
             }
         }
     }
 
-    // хэш нужен до отправки: по нему строится адрес карточки
+    // the hash is needed before sending: the card's URL is built from it
     deal.assign_hash();
     let hash = deal.del_hash.clone();
 
@@ -402,7 +405,7 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         .await
         .map_err(|e| e.to_string())?;
 
-    // заявка ушла оператору — отправляем карточку с кнопками решения
+    // the listing went to the operator — send the card with decision buttons
     if publish {
         crate::moderation::notify(&deal).await;
     }
@@ -413,14 +416,14 @@ pub async fn deals_save(p: DealSaveParams, actor_usr_id: Option<i64>) -> Result<
         "Listing saved"
     };
     Ok(ActionResp::redirect_with_success(
-        &format!("/deals/{hash}/"),
+        format!("/deals/{hash}/"),
         msg,
     ))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DealActionParams {
-    /// Постоянный хэш сделки — публичный идентификатор вместо id.
+    /// The deal's permanent hash — the public identifier, used instead of id.
     pub hash: String,
     pub action: String,
     #[serde(default)]
@@ -432,18 +435,18 @@ pub struct DealFundedParams {
     pub hash: String,
 }
 
-/// Покупатель сообщает, что оплатил замок. Сервер проверяет это в цепи.
+/// The buyer reports having funded the lock. The server checks it on chain.
 ///
-/// Клиенту не верим: статус `funded` ставится, только если контракт
-/// подтвердил, что деньги действительно лежат в замке под этой сделкой.
-/// Хэш транзакции от клиента вообще не принимаем — он ничего не доказывает.
+/// The client is not trusted: the `funded` status is set only if the contract
+/// confirms the money really sits in the lock under this deal. A transaction
+/// hash from the client is not accepted at all — it proves nothing.
 ///
-/// # Параметры
-/// * `p` — хэш сделки
-/// * `actor_usr_id` — покупатель
+/// # Parameters
+/// * `p` — the deal's hash
+/// * `actor_usr_id` — the buyer
 ///
-/// # Возвращает
-/// * `ActionResp` — переход на карточку сделки
+/// # Returns
+/// * `ActionResp` — navigation to the deal card
 pub async fn deals_funded(
     p: DealFundedParams,
     actor_usr_id: Option<i64>,
@@ -456,7 +459,7 @@ pub async fn deals_funded(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "deal not found".to_string())?;
 
-    // Настройки цепи — из константы `chain` в базе (правится в админке).
+    // Chain settings come from the `chain` constant, edited in the admin area.
     let constants = app_context()
         .db
         .get_constants()
@@ -472,33 +475,53 @@ pub async fn deals_funded(
         .ok_or_else(|| "on-chain settlement is not configured".to_string())?;
     let reader = crate::chain::core::ChainReader::new(&config)
         .ok_or_else(|| "on-chain settlement is not configured".to_string())?;
-    let (state, amount) = reader
-        .deal_state(&deal.del_hash)
+    let locked = reader
+        .locked_deal(&deal.del_hash)
         .await
         .map_err(|e| format!("chain read failed: {e}"))?;
 
-    if state != crate::chain::types::LockState::Funded {
+    if locked.state != crate::chain::types::LockState::Funded {
         return Err(format!(
             "lock is not funded yet (on-chain state: {})",
-            state.as_str()
+            locked.state.as_str()
         ));
     }
 
     let expected = crate::chain::core::usdc_units(deal.del_amount).map_err(|e| e.to_string())?;
-    if amount < expected {
+    if locked.amount < expected.to::<u128>() {
         return Err(format!(
-            "locked amount {amount} is less than the deal price {expected}"
+            "locked amount {} is less than the deal price {expected}",
+            locked.amount
         ));
     }
 
-    // покупатель становится известен только здесь — по факту оплаты
+    // The wallet of whoever is asking. It has to be the one that actually paid:
+    // otherwise the first person to call this handler after somebody else's
+    // payment would become the buyer of record — and the exact network would
+    // open to them.
+    let caller_wallet = app_context()
+        .db
+        .wallet_address_for_user(actor)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "no wallet linked to this account".to_string())?;
+    if !locked.buyer_is(&caller_wallet) {
+        return Err("this deal was funded from a different wallet".into());
+    }
+
+    // The seller in the contract is an argument of `fund`, chosen by the payer.
+    // If it does not match the listing, the money would be released to a
+    // stranger — refuse to record such a deal as paid.
+    if let Some(listed_seller) = deal.seller_wallet.as_deref().filter(|s| !s.trim().is_empty())
+        && !locked.seller_is(listed_seller)
+    {
+        return Err("the contract names a different seller than this listing".into());
+    }
+
+    // the buyer only becomes known here — by the fact of payment
     if deal.buyer_usr_id.is_none() {
         deal.buyer_usr_id = Some(actor);
-        deal.buyer_wallet = app_context()
-            .db
-            .wallet_address_for_user(actor)
-            .await
-            .map_err(|e| e.to_string())?;
+        deal.buyer_wallet = Some(caller_wallet);
     }
     deal.del_status = crate::models::deal::status::FUNDED.into();
     deal.lock_tx = Some(crate::chain::deal_id_hex(&deal.del_hash));
@@ -510,9 +533,30 @@ pub async fn deals_funded(
         .map_err(|e| e.to_string())?;
 
     Ok(ActionResp::redirect_with_success(
-        &format!("/deals/{}/", p.hash),
+        format!("/deals/{}/", p.hash),
         "USDC locked on-chain",
     ))
+}
+
+/// Is the chain live for this installation?
+///
+/// Several actions exist in two flavours: a stand-in for local work, and the
+/// real thing that moves money. Once a chain is configured the stand-ins have
+/// to be refused — otherwise a deal could be marked paid without a single
+/// token moving, which is exactly the barrier this product sells.
+async fn chain_is_live() -> bool {
+    let Ok(constants) = app_context().db.get_constants().await else {
+        return false;
+    };
+    let mut map = std::collections::HashMap::new();
+    for key in constants.keys() {
+        if let Ok(Some(v)) = constants.get::<serde_json::Value>(key) {
+            map.insert(key.clone(), v);
+        }
+    }
+    crate::chain::types::ChainConfig::from_constants(&map)
+        .map(|c| c.mode().is_live())
+        .unwrap_or(false)
 }
 
 /// Authorize action by party role.
@@ -523,11 +567,39 @@ fn authorize_action(deal: &Deal, action: &str, actor: i64) -> Result<(), String>
     let buyer = is_buyer(deal, actor);
     let is_request = deal.listing_side == "request";
     match action {
-        "soft_verify" | "list" | "publish" => {
+        // `list` is deliberately absent: it puts a lot straight onto the public
+        // board, bypassing review. The only way out of a draft is `publish`,
+        // which sends it to an operator. The transition itself still exists in
+        // the model — `approve` uses it — but nobody reaches it from outside.
+        "soft_verify" | "publish" => {
             if is_creator(deal, actor) {
                 Ok(())
             } else {
                 Err("forbidden: creator only".into())
+            }
+        }
+        // Anyone but the person who listed it may take a lot.
+        "take" => {
+            if is_creator(deal, actor) {
+                Err("forbidden: you cannot take your own listing".into())
+            } else {
+                Ok(())
+            }
+        }
+        // The fate of a hold is decided by whoever listed the lot.
+        "confirm_deal" | "decline_deal" => {
+            if is_creator(deal, actor) {
+                Ok(())
+            } else {
+                Err("forbidden: creator only".into())
+            }
+        }
+        // Either side may release a hold that has expired.
+        "release_reserve" => {
+            if seller || buyer || is_creator(deal, actor) {
+                Ok(())
+            } else {
+                Err("forbidden: party only".into())
             }
         }
         "accept" | "start_prepare" | "mark_prepared" => {
@@ -587,8 +659,53 @@ pub async fn deals_action(
 
     authorize_action(&deal, &p.action, actor)?;
 
-    // Counterparty wallet from linkage — never trust client payload
+    // With a chain configured, two actions must not be taken through this path.
+    //
+    // `fund` here is the local stand-in: it marks the deal paid and writes a
+    // made-up transaction, which would open the exact network to a buyer who
+    // paid nothing. Real payment goes from the wallet, and the server confirms
+    // it by reading the contract — see `deals_funded`.
+    //
+    // `cancel` on a funded deal would mark it refunded while the money stayed
+    // in the lock. A refund is a chain operation: either the observer performs
+    // it, or the buyer takes the money back themselves once the deadline has
+    // passed. Marking a refund that never happened is worse than refusing.
+    if chain_is_live().await {
+        let paid = deal.is_paid()
+            || matches!(
+                deal.del_status.as_str(),
+                crate::models::deal::status::FUNDED
+                    | crate::models::deal::status::AWAITING_PROOF
+            );
+        match p.action.as_str() {
+            "fund" => {
+                return Err("pay from your wallet — this button is for local runs only".into());
+            }
+            "cancel" if paid => {
+                return Err(
+                    "a funded deal cannot be cancelled here: the money is in the contract, \
+                     and it comes back either through the observer or through \
+                     refundAfterDeadline"
+                        .into(),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    // The wallet comes from the user's binding, never from the client's request.
     let mut wallet_arg = None;
+    if p.action == "take" {
+        let w = app_context()
+            .db
+            .wallet_address_for_user(actor)
+            .await
+            .map_err(|e| e.to_string())?;
+        if w.is_none() {
+            return Err("no wallet linked to this account".into());
+        }
+        wallet_arg = w;
+    }
     if p.action == "request" {
         let w = app_context()
             .db
@@ -617,6 +734,10 @@ pub async fn deals_action(
         .map_err(|e| e.to_string())?;
 
     let msg = match p.action.as_str() {
+        "take" => "Lot is yours for the next 6 hours — waiting for the seller to confirm",
+        "confirm_deal" => "Confirmed — the buyer can fund the escrow now",
+        "decline_deal" => "Declined — the lot is back on the board",
+        "release_reserve" => "Reservation released — the lot is back on the board",
         "soft_verify" => "Verification OK",
         "list" | "publish" => "Offer listed on market",
         "request" => "Buy request sent",
@@ -631,7 +752,7 @@ pub async fn deals_action(
     };
 
     Ok(ActionResp::redirect_with_success(
-        &format!("/deals/{}/", p.hash),
+        format!("/deals/{}/", p.hash),
         msg,
     ))
 }

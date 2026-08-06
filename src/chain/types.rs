@@ -1,28 +1,28 @@
-//! Типы слоя цепи: режим работы, настройки сети, ошибки, состояние сделки.
+//! Chain-layer types: operating mode, network settings, errors, deal state.
 
 use thiserror::Error;
 
-/// USDC everywhere: 6 знаков после запятой.
+/// USDC everywhere: 6 decimal places.
 pub const USDC_DECIMALS: u8 = 6;
 
-/// Денежный тип приложения хранится с 8 знаками, USDC — с 6.
-/// Разница ровно в 100 раз.
+/// The application's money type carries 8 decimals, USDC carries 6.
+/// The difference is exactly a factor of 100.
 pub const FIXED_N_TO_USDC_DIVISOR: i64 = 100;
 
-/// Сколько блоков ждать, прежде чем считать результат окончательным.
+/// How many blocks to wait before treating a result as final.
 ///
-/// На Monad исполнение отделено от консенсуса: квитанция появляется, когда
-/// блок только предложен, а исполнение гарантировано, когда блок ушёл на
-/// `D = 3` вглубь. Ждём именно столько — иначе «успех» может оказаться
-/// откатом.
+/// On Monad execution is decoupled from consensus: a receipt appears while the
+/// block is merely proposed, and execution is guaranteed once the block is
+/// `D = 3` deep. We wait exactly that long — otherwise a "success" can turn
+/// out to be a revert.
 pub const REQUIRED_CONFIRMATIONS: u64 = 3;
 
-/// Режим расчётов.
+/// Settlement mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChainMode {
-    /// Ончейна нет: транзакции подменяются строками. Для локальной работы.
+    /// No chain: transactions are stand-in strings. For local work.
     Mock,
-    /// Настоящая цепь: подписываем и отправляем транзакции.
+    /// A real chain: we sign and send transactions.
     Live,
 }
 
@@ -32,15 +32,16 @@ impl ChainMode {
     }
 }
 
-/// Код константы в таблице `constants`, где лежат настройки цепи.
+/// Key in the `constants` table holding the chain settings.
 ///
-/// Всё хранится в базе и правится через `/admin/constants/` — как
-/// telegram-креды и прочие секреты проекта. Ни окружения, ни файлов.
+/// Everything lives in the database and is edited through `/admin/constants/`
+/// — like the Telegram credentials and every other secret of this project.
+/// No environment variables, no files.
 pub const CHAIN_CONSTANT: &str = "chain";
 
-/// Параметры подключения к сети и адреса контрактов.
+/// Network connection parameters and contract addresses.
 ///
-/// Значение константы `chain` — объект:
+/// The `chain` constant holds an object:
 /// ```json
 /// {
 ///   "mode": "live",
@@ -53,40 +54,40 @@ pub const CHAIN_CONSTANT: &str = "chain";
 /// ```
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ChainConfig {
-    /// `live` — работать с настоящей цепью, иначе mock.
+    /// `live` — work against a real chain; anything else means mock.
     #[serde(default)]
     pub mode: String,
     #[serde(default)]
     pub rpc: String,
     #[serde(default)]
     pub chain_id: u64,
-    /// Адрес USDC (6 знаков).
+    /// USDC address (6 decimals).
     #[serde(default)]
     pub usdc: String,
-    /// Адрес EscrowLock.
+    /// EscrowLock address.
     #[serde(default)]
     pub lock: String,
-    /// Казна площадки — куда идёт комиссия.
+    /// Platform treasury — where the fee goes.
     #[serde(default)]
     pub treasury: String,
-    /// Страховой фонд — отдельный адрес, его баланс показываем на сайте.
+    /// Insurance fund — a separate address whose balance we show on the site.
     #[serde(default)]
     pub insurance: String,
-    /// Приватный ключ наблюдателя — им подписываются release/refund.
-    /// Нужен только процессу-наблюдателю.
+    /// The observer's private key — it signs release and refund.
+    /// Only the observer process needs it.
     #[serde(default)]
     pub observer_key: String,
 }
 
 impl ChainConfig {
-    /// Достаёт настройки цепи из словаря констант.
+    /// Pulls the chain settings out of the constants map.
     ///
-    /// # Параметры
-    /// * `constants` — снимок таблицы `constants` (код → значение)
+    /// # Parameters
+    /// * `constants` — snapshot of the `constants` table (key → value)
     ///
-    /// # Возвращает
-    /// * `Some(_)` — константа `chain` есть и разбирается
-    /// * `None` — константы нет или её формат не читается
+    /// # Returns
+    /// * `Some(_)` — the `chain` constant exists and parses
+    /// * `None` — no such constant, or its format is unreadable
     pub fn from_constants(
         constants: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Option<Self> {
@@ -94,17 +95,17 @@ impl ChainConfig {
         match serde_json::from_value::<Self>(raw.clone()) {
             Ok(c) => Some(c),
             Err(e) => {
-                tracing::warn!(error = %e, "константа `chain` не разбирается — работаем в mock");
+                tracing::warn!(error = %e, "the `chain` constant does not parse — falling back to mock");
                 None
             }
         }
     }
 
-    /// Режим по содержимому константы.
+    /// Mode implied by the constant's contents.
     ///
-    /// Живой режим требует адрес замка: читать состояние и отдавать браузеру
-    /// параметры оплаты можно без ключей. Ключ проверяет только тот, кто
-    /// подписывает, — см. [`ChainConfig::require_observer_key`].
+    /// Live mode needs the lock address: reading state and handing payment
+    /// parameters to the browser requires no keys at all. Only the party that
+    /// signs checks for a key — see [`ChainConfig::require_observer_key`].
     pub fn mode(&self) -> ChainMode {
         let wants_live = self.mode.trim().eq_ignore_ascii_case("live");
         if wants_live && !self.lock.trim().is_empty() {
@@ -114,21 +115,50 @@ impl ChainConfig {
         }
     }
 
-    /// Проверяет, что есть всё для подписи транзакций наблюдателем.
+    /// Checks that everything needed to sign as the observer is present.
     pub fn require_observer_key(&self) -> Result<(), ChainError> {
         if self.observer_key.trim().is_empty() {
             return Err(ChainError::Config(
-                "в константе `chain` пуст observer_key — заполни через /admin/constants/".into(),
+                "observer_key is empty in the `chain` constant — fill it in via /admin/constants/".into(),
             ));
         }
         if self.rpc.trim().is_empty() {
-            return Err(ChainError::Config("в константе `chain` пуст rpc".into()));
+            return Err(ChainError::Config("rpc is empty in the `chain` constant".into()));
         }
         Ok(())
     }
 }
 
-/// Состояние сделки в контракте — зеркало `enum State` из EscrowLock.sol.
+/// What the contract holds for a deal.
+///
+/// The parties are read back deliberately. `fund` takes the seller as an
+/// argument, so whoever paid decided who gets the money — and our database
+/// must not simply believe that the two agree. Both are compared before a deal
+/// is marked paid and before anything is released.
+#[derive(Debug, Clone)]
+pub struct LockedDeal {
+    pub state: LockState,
+    /// Deal price in USDC base units, without the fees.
+    pub amount: u128,
+    /// Who the contract will pay on release, lower-case hex.
+    pub seller: String,
+    /// Who actually funded it, lower-case hex.
+    pub buyer: String,
+}
+
+impl LockedDeal {
+    /// Is this address the one the contract recorded as the payer?
+    pub fn buyer_is(&self, address: &str) -> bool {
+        !self.buyer.is_empty() && self.buyer.eq_ignore_ascii_case(address.trim())
+    }
+
+    /// Is this address the one the contract will pay?
+    pub fn seller_is(&self, address: &str) -> bool {
+        !self.seller.is_empty() && self.seller.eq_ignore_ascii_case(address.trim())
+    }
+}
+
+/// Deal state in the contract — mirrors `enum State` from EscrowLock.sol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LockState {
     None,
@@ -159,28 +189,28 @@ impl LockState {
 
 #[derive(Debug, Error)]
 pub enum ChainError {
-    #[error("конфигурация цепи: {0}")]
+    #[error("chain configuration: {0}")]
     Config(String),
 
-    #[error("некорректный адрес {what}: {value}")]
+    #[error("malformed {what} address: {value}")]
     BadAddress { what: &'static str, value: String },
 
     #[error("RPC: {0}")]
     Rpc(String),
 
-    /// Транзакция попала в блок, но исполнение завершилось откатом.
-    /// На Monad это штатная ситуация: включение в блок ≠ успех.
-    #[error("транзакция {tx_hash} отклонена при исполнении")]
+    /// The transaction made it into a block, but execution reverted.
+    /// On Monad this is ordinary: inclusion in a block is not success.
+    #[error("transaction {tx_hash} reverted during execution")]
     TxReverted { tx_hash: String },
 
-    #[error("сумма отрицательная: {0}")]
+    #[error("amount is negative: {0}")]
     NegativeAmount(i64),
 
     #[error(
-        "сумма {0} не представима в USDC: младше 0.000001 USDC (потеряли бы копейки при переводе)"
+        "amount {0} is not representable in USDC: below 0.000001 USDC (we would lose the remainder in transfer)"
     )]
     SubUnitAmount(i64),
 
-    #[error("сумма {0} не помещается в 256 бит")]
+    #[error("amount {0} does not fit in 256 bits")]
     AmountOverflow(i64),
 }
