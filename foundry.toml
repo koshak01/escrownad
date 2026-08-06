@@ -1,9 +1,9 @@
-# Foundry — сборка солидити-контрактов EscrowNad.
+# Foundry — building the EscrowNad Solidity contracts.
 #
-# ВАЖНО: `src` указывает на `contracts/`, а не на `src/` — в `src/` лежит
-# Rust-код приложения. Артефакты идут в `contracts/out` (в .gitignore).
+# NOTE: `src` points at `contracts/`, not `src/` — the latter holds the Rust
+# application. Artefacts land in `contracts/out`, which is gitignored.
 #
-# Команда сборки: `forge build` (это forge из Foundry, не наша кузница).
+# Build with `forge build` (Foundry's forge).
 
 [profile.default]
 src = "contracts"

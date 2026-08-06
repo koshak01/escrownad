@@ -1,35 +1,35 @@
-//! Опрос сети в реестре через RDAP — второй источник факта.
+//! Querying the registry about one network over RDAP — the second source of fact.
 //!
-//! Таблица трансферов говорит «переход состоялся такого-то числа», но
-//! появляется в ней запись не мгновенно. RDAP отвечает по конкретной сети
-//! здесь и сейчас: кто держатель, какой тип ресурса, какая страна и когда
-//! запись меняли в последний раз.
+//! The transfer table says "a transfer happened on this date", but a row does
+//! not appear there instantly. RDAP answers about a specific network here and
+//! now: who holds it, what kind of resource it is, which country, and when the
+//! record was last touched.
 //!
-//! Два применения:
-//! 1. **при публикации** — подтянуть владельца, тип и страну из реестра,
-//!    вместо того чтобы верить тому, что вписал продавец;
-//! 2. **в оракуле** — увидеть смену держателя быстрее, чем она доедет до
-//!    таблицы трансферов.
+//! Two uses:
+//! 1. **at listing time** — pull the holder, the kind and the country straight
+//!    from the registry instead of trusting what the seller typed in;
+//! 2. **in the oracle** — spot a change of holder sooner than it reaches the
+//!    transfer table.
 
 use serde::Deserialize;
 
-/// Адрес RDAP-сервиса RIPE.
+/// Address of the RIPE RDAP service.
 pub const RIPE_RDAP: &str = "https://rdap.db.ripe.net/ip";
 
-/// Что реестр знает о сети прямо сейчас.
+/// What the registry knows about a network right now.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NetworkRecord {
-    /// Диапазон, как его отдал реестр: `194.246.124.0 - 194.246.125.255`.
+    /// Range exactly as the registry returned it: `194.246.124.0 - 194.246.125.255`.
     pub range: String,
-    /// Тип ресурса реестра: `ASSIGNED PI`, `ALLOCATED PA` и т.п.
+    /// Registry resource type: `ASSIGNED PI`, `ALLOCATED PA` and so on.
     pub resource_type: String,
-    /// Наш код вида ресурса: `PI` | `PA` | пусто, если не распознали.
+    /// Our own resource code: `PI` | `PA` | empty when unrecognised.
     pub kind: String,
-    /// Код страны.
+    /// Country code.
     pub country: String,
-    /// Держатель — организация-регистрант.
+    /// Holder — the registrant organisation.
     pub holder: String,
-    /// Когда запись меняли последний раз.
+    /// When the record was last changed.
     pub last_changed: Option<chrono::NaiveDate>,
 }
 
@@ -63,15 +63,15 @@ struct RdapEvent {
     date: String,
 }
 
-/// Спрашивает реестр о сети.
+/// Asks the registry about a network.
 ///
-/// # Параметры
-/// * `prefix` — сеть, например `194.246.124.0/23`
+/// # Parameters
+/// * `prefix` — the network, e.g. `194.246.124.0/23`
 ///
-/// # Возвращает
-/// * `Ok(Some(_))` — реестр знает такую сеть
-/// * `Ok(None)` — сети нет (404), это не ошибка связи
-/// * `Err(_)` — сеть недоступна или ответ не разобрался
+/// # Returns
+/// * `Ok(Some(_))` — the registry knows this network
+/// * `Ok(None)` — no such network (404); not a connectivity failure
+/// * `Err(_)` — the network is unreachable, or the reply did not parse
 pub async fn lookup(prefix: &str) -> Result<Option<NetworkRecord>, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
@@ -103,7 +103,7 @@ pub async fn lookup(prefix: &str) -> Result<Option<NetworkRecord>, String> {
     }))
 }
 
-/// Приводит тип реестра к нашему коду: `ASSIGNED PI` → `PI`.
+/// Maps a registry type onto our own code: `ASSIGNED PI` → `PI`.
 fn parse_kind(resource_type: &str) -> String {
     let upper = resource_type.to_uppercase();
     if upper.contains("PI") {
@@ -115,11 +115,12 @@ fn parse_kind(resource_type: &str) -> String {
     }
 }
 
-/// Имя организации-регистранта из vCard.
+/// Name of the registrant organisation, taken from the vCard.
 ///
-/// В RDAP держатель лежит в сущности с ролью `registrant`, а имя — в поле
-/// `fn` её vCard. Организаций может быть несколько (мейнтейнеры реестра
-/// тоже регистранты), поэтому берём первую с человеческим названием.
+/// In RDAP the holder sits in an entity with the `registrant` role, and its
+/// name is the `fn` field of that entity's vCard. There can be several such
+/// organisations — registry maintainers are registrants too — so we take the
+/// first one that reads like an actual company name.
 fn holder_name(entities: &[RdapEntity]) -> String {
     entities
         .iter()
@@ -129,7 +130,7 @@ fn holder_name(entities: &[RdapEntity]) -> String {
         .unwrap_or_default()
 }
 
-/// Достаёт `fn` (полное имя) из vcardArray.
+/// Pulls `fn` (the full name) out of a vcardArray.
 fn vcard_fn(vcard: &serde_json::Value) -> Option<String> {
     let entries = vcard.as_array()?.get(1)?.as_array()?;
     for entry in entries {
@@ -141,7 +142,7 @@ fn vcard_fn(vcard: &serde_json::Value) -> Option<String> {
     None
 }
 
-/// Дата последнего изменения записи.
+/// Date the record was last changed.
 fn last_changed(events: &[RdapEvent]) -> Option<chrono::NaiveDate> {
     events
         .iter()
@@ -155,12 +156,12 @@ fn last_changed(events: &[RdapEvent]) -> Option<chrono::NaiveDate> {
 }
 
 impl NetworkRecord {
-    /// Держатель сменился после указанной даты — признак состоявшегося
-    /// перехода, который ещё не доехал до таблицы трансферов.
+    /// Has the holder changed since the given date? That is the signature of a
+    /// completed transfer which has not yet reached the transfer table.
     ///
-    /// # Параметры
-    /// * `since` — день появления сделки
-    /// * `previous_holder` — держатель на момент публикации лота
+    /// # Parameters
+    /// * `since` — the day the deal appeared
+    /// * `previous_holder` — who held the resource when the lot was listed
     pub fn changed_hands_since(
         &self,
         since: chrono::NaiveDate,
@@ -173,9 +174,9 @@ impl NetworkRecord {
             return false;
         }
         match previous_holder.map(str::trim).filter(|s| !s.is_empty()) {
-            // держатель известен и он изменился
+            // we know who held it, and it is somebody else now
             Some(prev) => !self.holder.eq_ignore_ascii_case(prev),
-            // сравнивать не с чем — одной даты мало для вывода
+            // nothing to compare against — a date alone proves nothing
             None => false,
         }
     }

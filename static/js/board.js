@@ -1,9 +1,9 @@
-// board.js — живая доска на /deals/.
+// board.js — the live board at /deals/.
 //
-// Печать в поле поиска → запрос на сервер → сервер рендерит строки таблицы
-// и присылает готовый HTML → замена #board-rows. Кнопки «найти» нет.
-// Контент строит сервер (канон forge), JS только шлёт запрос и отдаёт
-// ответ ядерному диспетчеру.
+// Typing in the search box sends a request; the server renders the table rows
+// and returns ready HTML, which replaces #board-rows. There is no "search"
+// button. The server builds the content; JS only sends the request and hands
+// the reply to the platform dispatcher.
 
 import ws from 'forge/ws';
 import ui from 'forge/ui-actions';
@@ -21,7 +21,7 @@ function boardState(bar) {
 
 async function refresh(bar) {
     const state = boardState(bar);
-    // гонка: отвечаем только на последний запрос
+    // race: only the most recent request is acted on
     const seq = (bar._seq = (bar._seq || 0) + 1);
     try {
         const resp = await ws.request('deals_search', state);
@@ -48,7 +48,7 @@ function bind(bar) {
             clearTimeout(timer);
             timer = setTimeout(() => refresh(bar), DEBOUNCE_MS);
         });
-        // Enter не должен перезагружать страницу — данные и так свежие
+        // Enter must not reload the page — the data is already current
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();

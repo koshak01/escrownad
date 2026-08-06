@@ -1,24 +1,24 @@
-//! Приём нажатий кнопок из Telegram.
+//! Receiving button presses from Telegram.
 //!
-//! Оператор получает заявку карточкой с кнопками Approve / Decline. Нажатие
-//! прилетает сюда вебхуком, мы меняем статус сделки и тут же отвечаем
-//! Telegram, чтобы у оператора не крутился спиннер.
+//! The operator gets a listing as a card with Approve / Decline buttons. A
+//! press arrives here as a webhook; we change the deal's status and answer
+//! Telegram immediately, so the operator is not left watching a spinner.
 //!
-//! Три рубежа проверки, и каждый закрывает свою дыру:
+//! Three lines of defence, each closing a different hole:
 //!
-//! 1. **Секретный заголовок** `X-Telegram-Bot-Api-Secret-Token` — его шлёт
-//!    только Telegram, потому что мы задали значение при регистрации
-//!    вебхука. В адрес секрет НЕ кладём: путь попадает в `access_log`
-//!    nginx открытым текстом, то есть секрет утёк бы в логи.
-//! 2. **Сравнение за постоянное время** — обычное `==` выходит из цикла на
-//!    первом несовпавшем байте, и по времени ответа секрет подбирается
-//!    побайтово.
-//! 3. **Членство в группе** — кнопка живёт в закрытой группе операторов.
-//!    Право решать даёт само присутствие в ней: добавили человека — он
-//!    модератор, убрали — перестал. Отдельного списка нет намеренно, иначе
-//!    было бы два источника правды, которые рано или поздно разойдутся.
-//!    Проверяем два условия: нажатие пришло именно из нашего канала
-//!    модерации и нажавший в нём состоит.
+//! 1. **A secret header**, `X-Telegram-Bot-Api-Secret-Token` — only Telegram
+//!    sends it, because we set the value when registering the webhook. The
+//!    secret does NOT go in the URL: the path lands in nginx's `access_log` in
+//!    clear text, so the secret would leak into the logs.
+//! 2. **A constant-time comparison** — an ordinary `==` bails out at the first
+//!    mismatched byte, and the response timing lets the secret be guessed one
+//!    byte at a time.
+//! 3. **Group membership** — the button lives in a closed operators' group.
+//!    Presence in it *is* the right to decide: add someone and they are a
+//!    moderator, remove them and they are not. There is deliberately no
+//!    separate list, which would be a second source of truth bound to drift.
+//!    Two conditions are checked: the press came from our review channel, and
+//!    the person pressing belongs to it.
 
 use axum::Json;
 use axum::http::{HeaderMap, StatusCode};
@@ -29,7 +29,7 @@ use tracing::{info, warn};
 use crate::app_context;
 use crate::moderation::{CALLBACK_PREFIX, SHORT_HASH_LEN};
 
-/// Заголовок, которым Telegram доказывает, что запрос от него.
+/// The header by which Telegram proves a request is its own.
 pub const SECRET_HEADER: &str = "x-telegram-bot-api-secret-token";
 
 #[derive(Debug, Deserialize)]
@@ -67,13 +67,13 @@ pub struct TgUser {
     pub username: Option<String>,
 }
 
-/// Разобранное нажатие: какая сделка и какое решение.
+/// A parsed press: which deal, and which decision.
 struct Decision {
     short_hash: String,
     approve: bool,
 }
 
-/// Разбирает `callback_data` вида `dm:<короткий хэш>:<a|d>`.
+/// Parses `callback_data` of the form `dm:<short hash>:<a|d>`.
 fn parse_decision(data: &str) -> Option<Decision> {
     let mut parts = data.split(':');
     if parts.next()? != CALLBACK_PREFIX {
@@ -94,8 +94,8 @@ fn parse_decision(data: &str) -> Option<Decision> {
     })
 }
 
-/// Сравнение за постоянное время: время работы не зависит от того, где
-/// строки разошлись. Обычное `==` даёт подобрать секрет по таймингам.
+/// Constant-time comparison: the running time does not depend on where the
+/// strings diverged. An ordinary `==` lets the secret be recovered by timing.
 fn secret_eq(given: &str, expected: &str) -> bool {
     let (a, b) = (given.as_bytes(), expected.as_bytes());
     if a.len() != b.len() || b.is_empty() {
@@ -108,12 +108,12 @@ fn secret_eq(given: &str, expected: &str) -> bool {
     diff == 0
 }
 
-/// Вебхук Telegram.
+/// The Telegram webhook.
 ///
-/// Отвечаем `200` на всё, что прошло проверку подлинности: Telegram при
-/// ошибке повторяет доставку, а нам не нужен шторм повторов из-за нашей же
-/// внутренней проблемы. Неподлинный запрос получает `404` — снаружи это
-/// неотличимо от «такого адреса нет».
+/// Anything that passes authentication gets a `200`: Telegram retries on
+/// errors, and we do not want a storm of retries caused by a problem of our
+/// own. An unauthenticated request gets a `404` — from outside that is
+/// indistinguishable from "no such address".
 pub async fn handle(headers: HeaderMap, Json(update): Json<TgUpdate>) -> StatusCode {
     let settings = telegram_settings().await;
 
@@ -122,7 +122,7 @@ pub async fn handle(headers: HeaderMap, Json(update): Json<TgUpdate>) -> StatusC
         .and_then(|v| v.to_str().ok())
         .unwrap_or_default();
     if !secret_eq(given, &settings.webhook_secret) {
-        warn!("вебхук: запрос без верного секретного заголовка");
+        warn!("webhook: request without a valid secret header");
         return StatusCode::NOT_FOUND;
     }
 
@@ -130,8 +130,8 @@ pub async fn handle(headers: HeaderMap, Json(update): Json<TgUpdate>) -> StatusC
         return StatusCode::OK;
     };
 
-    // Кто и откуда нажал. Право решать даёт присутствие в группе операторов:
-    // нажатие должно прийти из неё, и нажавший должен в ней состоять.
+    // Who pressed, and from where. The right to decide comes from being in the
+    // operators' group: the press must come from it, and the presser must belong.
     let actor = query.from.as_ref().map(|u| u.id).unwrap_or_default();
     let chat = query
         .message
@@ -141,14 +141,14 @@ pub async fn handle(headers: HeaderMap, Json(update): Json<TgUpdate>) -> StatusC
         .unwrap_or_default();
 
     if settings.moderation_chat == 0 || chat != settings.moderation_chat {
-        warn!(chat, "вебхук: нажатие пришло не из группы операторов");
+        warn!(chat, "webhook: press did not come from the operators' group");
         return StatusCode::OK;
     }
     if !is_member(&settings.token, chat, actor).await {
         warn!(
             actor,
             username = query.from.as_ref().and_then(|u| u.username.as_deref()),
-            "вебхук: нажавший не состоит в группе — отклонено"
+            "webhook: presser is not in the group — rejected"
         );
         let _ = app_context()
             .notifier
@@ -165,30 +165,30 @@ pub async fn handle(headers: HeaderMap, Json(update): Json<TgUpdate>) -> StatusC
         return StatusCode::OK;
     };
     let Some(decision) = parse_decision(&data) else {
-        warn!(data = %data, "вебхук: неизвестная кнопка");
+        warn!(data = %data, "webhook: unknown button");
         return StatusCode::OK;
     };
 
     let answer = match apply(&decision, actor).await {
         Ok(text) => text,
         Err(e) => {
-            warn!(error = %e, "вебхук: решение не применилось");
+            warn!(error = %e, "webhook: the decision did not apply");
             e
         }
     };
 
-    // Спиннер на кнопке живёт 15 секунд — отвечаем сразу.
+    // The button's spinner lives 15 seconds — answer at once.
     if let Err(e) = app_context()
         .notifier
         .answer_callback(query.id, Some(answer), false)
         .await
     {
-        warn!(error = %e, "вебхук: не ответил на нажатие");
+        warn!(error = %e, "webhook: failed to answer the press");
     }
     StatusCode::OK
 }
 
-/// Меняет статус сделки по решению оператора.
+/// Changes the deal's status according to the operator's decision.
 async fn apply(decision: &Decision, actor: i64) -> Result<String, String> {
     let mut deal = app_context()
         .db
@@ -212,7 +212,7 @@ async fn apply(decision: &Decision, actor: i64) -> Result<String, String> {
         .await
         .map_err(|e| e.to_string())?;
 
-    info!(deal = %hash, action, moderator = actor, "модерация: решение оператора");
+    info!(deal = %hash, action, moderator = actor, "review: operator decision");
     Ok(if decision.approve {
         format!("Listing {no} is live")
     } else {
@@ -220,14 +220,15 @@ async fn apply(decision: &Decision, actor: i64) -> Result<String, String> {
     })
 }
 
-/// Состоит ли человек в группе операторов.
+/// Is this person a member of the operators' group?
 ///
-/// Спрашиваем у Telegram напрямую: список участников — его дело, а не наше.
-/// Вышел из группы — право решать пропало в ту же секунду, без правок в базе.
+/// We ask Telegram directly: the membership list is its business, not ours.
+/// Leave the group and the right to decide is gone that same second, with no
+/// database edit.
 ///
-/// # Возвращает
-/// * `true` — участник, администратор или создатель
-/// * `false` — вышел, изгнан, никогда не состоял, либо Telegram недоступен
+/// # Returns
+/// * `true` — a member, an administrator, or the creator
+/// * `false` — left, banned, never joined, or Telegram is unreachable
 async fn is_member(token: &str, chat_id: i64, user_id: i64) -> bool {
     if token.is_empty() || user_id == 0 {
         return false;
@@ -239,23 +240,23 @@ async fn is_member(token: &str, chat_id: i64, user_id: i64) -> bool {
     {
         Ok(c) => c,
         Err(e) => {
-            warn!(error = %e, "вебхук: не собрал http-клиент");
+            warn!(error = %e, "webhook: could not build the http client");
             return false;
         }
     };
-    // параметры в самом адресе: фича `query` у reqwest в нашей сборке выключена
+    // parameters in the URL itself: reqwest's `query` feature is off in our build
     let url = format!("{url}?chat_id={chat_id}&user_id={user_id}");
     let resp = client.get(&url).send().await;
     let body: Value = match resp {
         Ok(r) => match r.json().await {
             Ok(v) => v,
             Err(e) => {
-                warn!(error = %e, "вебхук: getChatMember не разобрался");
+                warn!(error = %e, "webhook: getChatMember did not parse");
                 return false;
             }
         },
         Err(e) => {
-            warn!(error = %e, "вебхук: getChatMember недоступен");
+            warn!(error = %e, "webhook: getChatMember unreachable");
             return false;
         }
     };
@@ -267,12 +268,12 @@ async fn is_member(token: &str, chat_id: i64, user_id: i64) -> bool {
     matches!(status, "creator" | "administrator" | "member")
 }
 
-/// Настройки бота из константы `telegrams`.
+/// Bot settings from the `telegrams` constant.
 #[derive(Debug, Default)]
 struct TelegramSettings {
     token: String,
     webhook_secret: String,
-    /// Чат группы операторов — только оттуда принимаем решения.
+    /// The operators' group chat — decisions are accepted only from there.
     moderation_chat: i64,
 }
 

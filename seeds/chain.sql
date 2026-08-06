@@ -1,21 +1,21 @@
 -- escrownad/seeds/chain.sql
--- Настройки расчётного слоя (Monad + USDC) — константа `chain`.
+-- Settlement layer settings (Monad + USDC) — the `chain` constant.
 --
 --     psql -h 127.0.0.1 -U html -d 'escrownad.com' -f seeds/chain.sql
 --
--- Канон проекта: параметры и ключи живут в таблице `constants` и правятся
--- через /admin/constants/. Ни окружения, ни файлов на диске.
+-- Project convention: parameters and keys live in the `constants` table and
+-- are edited through /admin/constants/. No environment variables, no files.
 --
--- ВАЖНО: `observer_key` здесь ПУСТОЙ и таким остаётся в репозитории.
--- Приватный ключ вписывается только через админку или прямым UPDATE на
--- сервере. Повторный прогон этого файла НЕ затирает уже введённый ключ —
--- см. COALESCE ниже.
+-- IMPORTANT: `observer_key` is EMPTY here and stays empty in the repository.
+-- The private key is entered only through the admin area or by a direct UPDATE
+-- on the server. Re-running this file does NOT overwrite a key already in
+-- place — see the COALESCE below.
 
 INSERT INTO constants (cnt_code, cnt_descr, cnt_value_json, cnt_is_enable)
 VALUES (
     'chain',
-    'Расчёты в цепи: сеть Monad, адреса USDC и EscrowLock, ключ наблюдателя. '
-    'mode=live включает работу с настоящей цепью, любое другое значение — mock.',
+    'On-chain settlement: the Monad network, the USDC and EscrowLock addresses, '
+    'and the observer key. mode=live works against the real chain; anything else is mock.',
     jsonb_build_object(
         'mode',         'live',
         'rpc',          'https://testnet-rpc.monad.xyz',
@@ -28,7 +28,7 @@ VALUES (
 )
 ON CONFLICT (cnt_code, cnt_is_enable) DO UPDATE
    SET cnt_descr = EXCLUDED.cnt_descr,
-       -- обновляем адреса и сеть, но сохраняем уже введённый ключ
+       -- update addresses and network, but keep a key already entered
        cnt_value_json = EXCLUDED.cnt_value_json || jsonb_build_object(
            'observer_key',
            COALESCE(NULLIF(constants.cnt_value_json ->> 'observer_key', ''), '')

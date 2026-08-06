@@ -1,40 +1,40 @@
-{# ЭТАЛОН списка доменной сущности. Копия паттерна ядерных
-   templates/admin/{constants,telegrams}/list.html.tera — фильтр + сортировка +
-   inline-toggle + кнопка [+] в шапке. Свою сущность делай ровно так же. #}
+{# Reference list for a domain entity. Mirrors the platform pattern in
+   templates/admin/{constants,telegrams}/list.html.tera — filter, sorting,
+   inline toggle and a [+] button in the header. Build your own the same way. #}
 {% extends "_base.html.tera" %}
 
 {% block title %}Demo · {{ constants.site_title | default(value="forge") }}{% endblock %}
 
 {% block content %}
-{% <admin_list title="Demo (эталон admin-CRUD)"> %}
-  {# structure-driven фильтр: контролы и prefill из DemoListFilter::to_fields() #}
+{% <admin_list title="Demo (admin CRUD reference)"> %}
+  {# Structure-driven filter: controls and prefill from DemoListFilter::to_fields() #}
   {{ <filter_accordion app="/admin/demos/" fields={filter_fields} info={filter_info | default(value="")} /> }}
   <table class="admin-table">
     <thead>
       <tr>
-        {{ <sort_header label="Код" col="dmo_code" sort_col={sort_col} sort_dir={sort_dir} /> }}
-        {{ <sort_header label="Заголовок" col="dmo_title" sort_col={sort_col} sort_dir={sort_dir} /> }}
-        <th>Заметка</th>
-        {{ <sort_header label="Активно" col="dmo_is_enable" sort_col={sort_col} sort_dir={sort_dir} /> }}
-        <th class="admin-table__actions">{{ <admin_add url="/admin/demos/new/" title="Добавить" /> }}</th>
+        {{ <sort_header label="Code" col="dmo_code" sort_col={sort_col} sort_dir={sort_dir} /> }}
+        {{ <sort_header label="Title" col="dmo_title" sort_col={sort_col} sort_dir={sort_dir} /> }}
+        <th>Note</th>
+        {{ <sort_header label="Active" col="dmo_is_enable" sort_col={sort_col} sort_dir={sort_dir} /> }}
+        <th class="admin-table__actions">{{ <admin_add url="/admin/demos/new/" title="Add" /> }}</th>
       </tr>
     </thead>
     <tbody>
       {% if demos | length == 0 %}
-        <tr><td colspan="99">{{ <admin_empty text="Пока пусто. Создайте первую demo-запись." /> }}</td></tr>
+        <tr><td colspan="99">{{ <admin_empty text="Nothing here yet. Create the first demo row." /> }}</td></tr>
       {% else %}
         {% for d in demos %}
           <tr>
             <td><code>{{ d.dmo_code | default(value="—") }}</code></td>
             <td>{{ d.dmo_title | default(value="—") }}</td>
             <td>{{ d.dmo_note | default(value="—") }}</td>
-            <td>{{ <bool_toggle_cell model="demos" id={d.dmo_id} field="dmo_is_enable" value={d.dmo_is_enable} title="Переключить активность" /> }}</td>
+            <td>{{ <bool_toggle_cell model="demos" id={d.dmo_id} field="dmo_is_enable" value={d.dmo_is_enable} title="Toggle active" /> }}</td>
             <td>
               {% set edit_url = "/admin/demos/" ~ d.dmo_id ~ "/" %}
               {{ <admin_actions
                    edit_url={edit_url}
                    delete_handler="demos_delete"
-                   delete_confirm="Удалить demo-запись?"
+                   delete_confirm="Delete this demo row?"
                    item_id={d.dmo_id} /> }}
             </td>
           </tr>

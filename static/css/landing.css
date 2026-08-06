@@ -1,14 +1,14 @@
-/* escrownad — приватная заставка.
-   Палитра из tokens.css (Monad-adjacent: deep night + electric violet).
-   Радиус — var(--radius), без pill (design_baseline §4).
+/* escrownad — the private splash screen.
+   Palette from tokens.css (Monad-adjacent: deep night + electric violet).
+   Radius is var(--radius); no pills.
 
-   Фон — `cover.webp` (Дедал): full-bleed, тёмный, vibes сети Monad
-   (скорость / фиолет / proof flash). var(--bg) под ней — фолбэк.
+   Background — `cover.webp`: full-bleed, dark, Monad-network vibes
+   (speed / violet / a flash of proof). var(--bg) beneath is the fallback.
 
-   ЗАСТАВКА ВСЕГДА ТЁМНАЯ — осознанно. Текст поверх тёмной картинки,
-   поэтому остаётся светлым при любой системной теме. Standalone:
-   скрипт html.light живёт в _base_core, которого здесь нет.
-   => НЕ добавлять переключатель темы и не подключать _base_core. */
+   THE SPLASH IS ALWAYS DARK, deliberately. The text sits over a dark image,
+   so it stays light under any system theme. This page is standalone: the
+   html.light script lives in _base_core, which is not included here.
+   => Do NOT add a theme switch and do not pull in _base_core. */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
@@ -18,7 +18,7 @@ body {
   display: flex;
   flex-direction: column;
 }
-/* Слева тёмный градиент — текст читается даже если cover яркий. */
+/* A dark gradient on the left keeps the text readable over a bright cover. */
 body::before {
   content: "";
   position: fixed;

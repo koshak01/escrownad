@@ -1,8 +1,9 @@
-//! Оракул: подтверждение перехода сети по данным реестра.
+//! Oracle: confirming that a network changed hands, from registry data.
 //!
-//! Два источника факта:
-//! * таблицы трансферов RIPE (этот файл) — говорят «переход был такого числа»;
-//! * RDAP по конкретной сети ([`rdap`]) — говорит, кто держатель прямо сейчас.
+//! Two independent sources of fact:
+//! * the RIPE transfer tables (this file) — they say "a transfer happened on
+//!   this date";
+//! * RDAP on the network itself ([`rdap`]) — it says who holds it right now.
 
 pub mod rdap;
 
@@ -81,15 +82,16 @@ pub async fn fetch_transfers(kind: ResourceKind) -> Result<Vec<RipeTransfer>, St
     Ok(payload.transfers)
 }
 
-/// Дата строки реестра. В таблицах RIPE формат `05/08/2026`.
+/// Date of a registry row. The RIPE tables use `05/08/2026`.
 pub fn transfer_date(t: &RipeTransfer) -> Option<chrono::NaiveDate> {
     chrono::NaiveDate::parse_from_str(t.date.trim(), "%d/%m/%Y").ok()
 }
 
-/// Сеть из строки реестра совпадает с искомой.
+/// Does the network in this registry row match the one we are watching?
 ///
-/// Сравнение по границам, а не подстрокой: иначе `10.1.1.0` совпал бы
-/// с `110.1.1.0`, и деньги ушли бы по чужому переходу.
+/// Compared on boundaries rather than as a substring: otherwise `10.1.1.0`
+/// would match `110.1.1.0`, and the money would be released against somebody
+/// else's transfer.
 fn block_matches(prefix: &str, t: &RipeTransfer) -> bool {
     let needle = prefix.trim();
     if needle.is_empty() {
@@ -105,26 +107,27 @@ fn block_matches(prefix: &str, t: &RipeTransfer) -> bool {
     listed(&t.original_block) || listed(&t.transferred_blocks)
 }
 
-/// Строка реестра подтверждает переход по нашей сделке.
+/// Does this registry row confirm the transfer our deal is waiting for?
 ///
-/// Оракул садится на конкретную сеть и ждёт, когда по ней появится
-/// **новая** запись:
+/// The oracle sits on one specific network and waits for a **new** row to show
+/// up against it:
 ///
-/// 1. сеть совпадает точно (по границам, не подстрокой);
-/// 2. запись датирована **не раньше** появления сделки — иначе засчитали бы
-///    старый чужой переход, случившийся до того, как лот вообще возник;
-/// 3. организации, если заданы, служат дополнительной проверкой — но
-///    продавец их не обязан вписывать: кто кому передал, мы узнаём из самой
-///    найденной строки.
+/// 1. the network matches exactly (on boundaries, not as a substring);
+/// 2. the row is dated **no earlier** than the deal itself — otherwise we would
+///    count somebody else's old transfer that happened before the listing even
+///    existed;
+/// 3. the organisations, when given, act as an extra check — but the seller is
+///    not required to fill them in: who handed what to whom is read off the
+///    matched row itself.
 ///
-/// # Параметры
-/// * `prefix` — сеть сделки
-/// * `since` — день, раньше которого переход нам не подходит
-/// * `from_org` / `to_org` — необязательное уточнение сторон
-/// * `t` — строка таблицы трансферов
+/// # Parameters
+/// * `prefix` — the network being sold
+/// * `since` — the day before which a transfer is of no interest to us
+/// * `from_org` / `to_org` — optional narrowing by party
+/// * `t` — one row of the transfer table
 ///
-/// # Возвращает
-/// * `true` — это наш переход
+/// # Returns
+/// * `true` — this is our transfer
 pub fn match_deal(
     prefix: &str,
     since: Option<chrono::NaiveDate>,
@@ -138,19 +141,19 @@ pub fn match_deal(
     if let Some(since) = since {
         match transfer_date(t) {
             Some(d) if d >= since => {}
-            // дата не разобралась или переход старше сделки — не наш случай
+            // unparsable date, or a transfer older than the deal — not ours
             _ => return false,
         }
     }
-    if let Some(f) = from_org.filter(|s| !s.trim().is_empty()) {
-        if !t.from.to_lowercase().contains(&f.trim().to_lowercase()) {
-            return false;
-        }
+    if let Some(f) = from_org.filter(|s| !s.trim().is_empty())
+        && !t.from.to_lowercase().contains(&f.trim().to_lowercase())
+    {
+        return false;
     }
-    if let Some(to) = to_org.filter(|s| !s.trim().is_empty()) {
-        if !t.to.to_lowercase().contains(&to.trim().to_lowercase()) {
-            return false;
-        }
+    if let Some(to) = to_org.filter(|s| !s.trim().is_empty())
+        && !t.to.to_lowercase().contains(&to.trim().to_lowercase())
+    {
+        return false;
     }
     true
 }

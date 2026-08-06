@@ -1,6 +1,6 @@
-{# Проектная страница 500 — перекрывает ядерную (та по-русски и с брендом
-   кузницы). Наследуемся от нашего `_base.html.tera`: свой favicon, свои
-   шапка/подвал, продуктовый EN-копирайт. #}
+{# The project's own 500 page — overrides the platform one, which is in Russian
+   and carries the platform's branding. It extends our `_base.html.tera`: our
+   favicon, our header and footer, English product copy. #}
 {% extends "_base.html.tera" %}
 
 {% block title %}Something broke · EscrowNad{% endblock %}

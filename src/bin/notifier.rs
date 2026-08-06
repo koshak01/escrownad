@@ -1,9 +1,9 @@
-//! escrownad-notifier — тонкий бинарник поверх `forge_notifier::serve`.
+//! escrownad-notifier — a thin binary over `forge_notifier::serve`.
 //!
-//! Вся ядерная логика (mpsc-очередь, rate-limit, Tera engine, Telegram Bot
-//! API, ask/answer_callback_query/delete_message) живёт в `forge-notifier`.
-//! Здесь только конфигурация и запуск. Реализация `NotifierDb` для
-//! `DbClient` — в `escrownad::lib`.
+//! Every piece of the machinery — the mpsc queue, rate limiting, the Tera
+//! engine, the Telegram Bot API, ask/answer_callback_query/delete_message —
+//! lives in `forge-notifier`. This file only configures and starts it. The
+//! `NotifierDb` implementation for `DbClient` is in `escrownad::lib`.
 
 use escrownad::{DbClient, sockets};
 use tracing::info;

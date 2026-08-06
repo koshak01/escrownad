@@ -1,9 +1,11 @@
-//! Список demo — `/admin/demos/`. Structure-driven фильтр (`DemoListFilter`)
-//! + сортировка. Общий пролог/эпилог — ядерные `forge_admin::{load_filter,
-//! page_sort, prepare_list_ctx}` (те же, что у 7 ядерных списков).
+//! Demo list — `/admin/demos/`. Structure-driven filter (`DemoListFilter`)
+//! plus sorting. The shared prologue and epilogue are the platform's
+//! `forge_admin::{load_filter, page_sort, prepare_list_ctx}` — the same ones
+//! seven platform lists use.
 //!
-//! Отличие от ядерных страниц: данные тянем через `app_context().db.*` (свой
-//! `DbCommand`), а не через `env()` — это проектная сущность.
+//! Unlike the platform pages, the data comes through `app_context().db.*` —
+//! our own `DbCommand` — rather than through `env()`, because this entity
+//! belongs to the project.
 
 use async_trait::async_trait;
 use forge_ws::{AuthRequirement, Page, RequestContext, WsError, WsResult};

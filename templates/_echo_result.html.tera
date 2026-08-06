@@ -1,4 +1,4 @@
 <div id="echo-result" class="echo-result">
   <p class="echo-result__text">{{ text }}</p>
-  <p class="muted">Сервер ответил в {{ now }}.</p>
+  <p class="muted">Server replied at {{ now }}.</p>
 </div>

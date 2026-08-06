@@ -6,8 +6,8 @@ edition = "2024"
 authors = ["koshak01 <p.elagin@gmail.com>"]
 license = "MIT"
 
-# 4 бинарника, IPC через unix-sockets.
-# Порядок запуска: database → notifier → ws → web.
+# Four binaries talking over unix sockets.
+# Start order: database → notifier → ws → web.
 [[bin]]
 name = "escrownad-database"
 path = "src/bin/database.rs"
@@ -30,7 +30,7 @@ name = "escrownad-observer"
 path = "src/bin/observer.rs"
 
 [dependencies]
-# forge — общая платформа. лежит side-by-side: ../forge/
+# The shared platform, living side by side at ../forge/ (not public).
 forge-admin    = { path = "../forge/crates/forge-admin" }
 forge-core     = { path = "../forge/crates/forge-core" }
 forge-db       = { path = "../forge/crates/forge-db" }
@@ -41,7 +41,7 @@ forge-session  = { path = "../forge/crates/forge-session" }
 forge-web      = { path = "../forge/crates/forge-web" }
 forge-ws       = { path = "../forge/crates/forge-ws" }
 
-# внешние зависимости — версии те же что в forge/Cargo.toml [workspace.dependencies].
+# External dependencies — the same versions as the platform workspace.
 tokio       = { version = "1", features = ["full"] }
 sqlx        = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "postgres", "chrono", "uuid"] }
 axum        = { version = "0.8", features = ["ws", "macros"] }
@@ -56,13 +56,14 @@ tracing     = "0.1"
 async-trait = "0.1"
 reqwest     = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 
-# Санация HTML из wysiwyg перед записью в БД (белый список тегов).
-# Без неё описание лота нельзя выводить через `| safe` — это был бы XSS.
+# Sanitising wysiwyg HTML before it reaches the database (tag whitelist).
+# Without it a listing description could not be rendered through `| safe` —
+# that would be an XSS hole.
 ammonia     = "4"
 
-# EVM-клиент для Monad: подпись и отправка release/refund в EscrowLock,
-# чтение состояния сделки из контракта. Дефолтные фичи = contract +
-# provider-http + rpc-types + signer-local, транспорт на rustls (как reqwest).
+# EVM client for Monad: signing and sending release/refund to EscrowLock, and
+# reading deal state from the contract. Default features cover contract +
+# provider-http + rpc-types + signer-local, over rustls as with reqwest.
 alloy       = "2"
 
 # EVM wallet login (MetaMask personal_sign → ecrecover)

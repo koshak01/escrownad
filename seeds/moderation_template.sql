@@ -1,14 +1,14 @@
 -- escrownad/seeds/moderation_template.sql
--- Шаблон карточки заявки для оператора + кнопки Approve / Decline.
+-- The listing card template for the operator, with Approve / Decline buttons.
 --
 --     psql -h 127.0.0.1 -U html -d 'escrownad.com' -f seeds/moderation_template.sql
 --
--- Текст ТОЛЬКО английский: продукт англоязычный, оператор читает то же,
--- что видят пользователи и жюри.
+-- English ONLY: the product is English, and the operator reads exactly what
+-- users and judges see.
 --
--- parse_mode = RichMarkdown (Bot API 10.2): заголовки и таблицы.
--- callback_data кнопок: `dm:<16 символов хэша>:<a|d>` — Telegram ограничивает
--- это поле 64 байтами, полный хэш туда не влезает.
+-- parse_mode = RichMarkdown (Bot API 10.2): headings and tables.
+-- Button callback_data is `dm:<16 hash chars>:<a|d>` — Telegram caps that field
+-- at 64 bytes, and a full hash does not fit.
 
 INSERT INTO templates (tpl_code, tpl_descr, tpl_template, tpl_reply_markup_template, tpl_param, tlg_id, tpl_hash, tpl_is_enable)
 VALUES (

@@ -1,5 +1,5 @@
-//! Редактирование demo — `/admin/demos/{id}/`. Тянет запись через
-//! `app_context().db.get_demo(id)` и кладёт в `ctx` под ключом `demo`.
+//! Editing a demo — `/admin/demos/{id}/`. Fetches the record through
+//! `app_context().db.get_demo(id)` and puts it into `ctx` under `demo`.
 
 use async_trait::async_trait;
 use forge_ws::{AuthRequirement, Page, RequestContext, WsError, WsResult};

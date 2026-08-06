@@ -1,9 +1,9 @@
-# Deploy — escrownad (forge-канон)
+# Deploy — escrownad
 
-Prod path on foothold: `/work/production/rust/escrownad/`  
+Production path: `/work/production/rust/escrownad/`  
 Bare git: `/work/git/rust/escrownad.git`
 
-## Hyperion checklist
+## Deploy checklist
 
 1. `git pull` on production worktree  
 2. `cargo build --release --bins` (needs `../forge`)  

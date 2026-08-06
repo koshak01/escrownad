@@ -1,5 +1,5 @@
-{# Строки доски. Рендерится и страницей, и живым поиском (deals_search):
-   сервер отдаёт готовый HTML, JS только подставляет его в #board-rows. #}
+{# Board rows. Rendered both by the page and by live search (deals_search):
+   the server returns ready HTML, JS only drops it into #board-rows. #}
 <tbody id="board-rows" data-shown="{{ shown }}" data-total="{{ total }}">
   {% if deals | length == 0 %}
   <tr>

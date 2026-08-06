@@ -1,5 +1,5 @@
-//! Проектные admin-страницы. В skeleton — только учебный `demos` (эталон
-//! admin-CRUD доменной сущности). Реальные проекты кладут сюда свои разделы
-//! (`admin::orders`, `admin::categories`, ...) и удаляют `demos`.
+//! The project's admin pages. The skeleton ships only the teaching `demos`
+//! entity as a reference for admin CRUD. Real projects put their own sections
+//! here (`admin::orders`, `admin::categories`, …) and delete `demos`.
 
 pub mod demos;

@@ -1,12 +1,12 @@
-# escrownad-notifier — Telegram-воркер с rate-limited очередью.
-# В Postgres не лезет — данные (bot-token, шаблоны) через IPC у escrownad-database.
+# escrownad-notifier — the Telegram worker with a rate-limited queue.
+# Never touches Postgres — the bot token and templates come over IPC.
 
 [telegram]
-# Минимальный интервал между отправками (Bot API ~30 msg/s — режем ниже).
+# Minimum interval between sends (the Bot API allows ~30 msg/s; we stay below).
 send_interval_ms = 3000
-# Таймаут HTTP-запроса к api.telegram.org.
+# HTTP timeout for api.telegram.org.
 api_timeout_ms = 10000
-# Вместимость mpsc-очереди. При переполнении — Err клиенту IPC.
+# Capacity of the mpsc queue. On overflow the IPC client gets an Err.
 queue_capacity = 1024
-# Сколько ждать готовности escrownad-database при старте (мс).
+# How long to wait for escrownad-database at startup, in milliseconds.
 db_wait_ms = 10000

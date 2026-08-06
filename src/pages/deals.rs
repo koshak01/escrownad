@@ -12,20 +12,20 @@ pub const OFFER_TYPES: &[&str] = &["ip", "domain", "property", "work", "other"];
 
 #[derive(Debug, Serialize)]
 pub struct OfferRow {
-    /// Постоянный хэш — адрес карточки `/deals/<hash>/`.
+    /// The permanent hash — the card's address `/deals/<hash>/`.
     del_hash: String,
-    /// Публичный номер лота `ddd-ddd` (id наружу не показываем).
+    /// Public lot number `ddd-ddd` (the id is never shown outside).
     deal_no: String,
     /// offer | request
     listing_side: String,
     offer_type: String,
-    /// Реестр: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
+    /// Registry: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
     rir: String,
-    /// Сколько адресов в блоке — покупатель смотрит на это, а не на маску.
+    /// Addresses in the block — what a buyer reads, rather than the mask.
     addresses: Option<u64>,
     description: String,
-    /// Сырое значение FixedN<8> — форматируется фильтром в шаблоне.
-    /// Наружу цена не уезжает как f64: денежные значения только целые.
+    /// Raw FixedN<8> — formatted by a filter in the template. Price never
+    /// leaves as an f64: money is integers only.
     price_raw: i64,
     listed_at: String,
     listed_for: String,
@@ -35,14 +35,14 @@ pub struct OfferRow {
     del_status: String,
 }
 
-/// Набор сделок на доске.
+/// Which set of deals the board shows.
 ///
-/// - `all` — рынок: только активные предложения (`listed`, срок не вышел);
-/// - `settled` — состоявшиеся сделки: деньги выпущены по факту из реестра.
-///   Показываем всем и без входа: это доказательство, что механизм работает,
-///   и каждую строку можно перепроверить в публичных таблицах RIPE;
-/// - `mine` — созданные мной или где я сторона, в любом статусе;
-/// - `arbitration` — споры, где я сторона.
+/// - `all` — the market: live listings only (`listed`, not expired);
+/// - `settled` — completed deals, where money was released against a registry
+///   fact. Shown to everyone, signed in or not: it is the proof the mechanism
+///   works, and every row can be re-checked in RIPE's public tables;
+/// - `mine` — listed by me, or where I am a party, in any status;
+/// - `arbitration` — disputes where I am a party.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoardScope {
     All,
@@ -70,14 +70,14 @@ impl BoardScope {
         }
     }
 
-    /// В своих наборах статус сделки виден — там он несёт смысл (стадия).
-    /// На общей доске все строки активные, колонка статуса бессмысленна.
+    /// In personal sets the status carries meaning — it is the stage. On the
+    /// public board every row is live, so a status column would say nothing.
     fn shows_status(self) -> bool {
         !matches!(self, Self::All | Self::Settled)
     }
 }
 
-/// Параметры выборки доски — одни и те же для страницы и для живого поиска.
+/// Board selection parameters — the same for the page and for live search.
 #[derive(Debug, Default, Serialize)]
 pub struct BoardFilter {
     pub side: String,
@@ -86,7 +86,7 @@ pub struct BoardFilter {
 }
 
 impl BoardFilter {
-    /// Собирает фильтр из query-параметров страницы.
+    /// Builds the filter from the page's query parameters.
     fn from_query(ctx: &RequestContext) -> Self {
         let side = ctx
             .query
@@ -107,10 +107,11 @@ impl BoardFilter {
         }
     }
 
-    /// Строка подходит под фильтр (сторона + текстовый поиск).
+    /// Does this row match the filter (side plus text search)?
     ///
-    /// `may_search_prefix` — искать ли по самой сети. Анониму нельзя:
-    /// скрытую сеть иначе можно подобрать перебором через строку поиска.
+    /// `may_search_prefix` — whether to search the network itself. Not for
+    /// anonymous visitors: otherwise a hidden network could be brute-forced
+    /// through the search box.
     fn matches(&self, deal: &Deal, may_search_prefix: bool) -> bool {
         if !self.side.is_empty() && deal.listing_side != self.side {
             return false;
@@ -119,7 +120,11 @@ impl BoardFilter {
             let needle = self.query.to_lowercase();
             let haystack = format!(
                 "{} {} {} {} {}",
-                if may_search_prefix { deal.prefix.as_str() } else { "" },
+                if may_search_prefix {
+                    deal.prefix.as_str()
+                } else {
+                    ""
+                },
                 crate::sanitize::plain_text(deal.del_title.as_deref().unwrap_or("")),
                 deal.geo.as_deref().unwrap_or(""),
                 deal.rir,
@@ -134,29 +139,31 @@ impl BoardFilter {
     }
 }
 
-/// Сделка входит в выбранный набор.
+/// Does this deal belong to the selected set?
 fn in_scope(deal: &Deal, scope: BoardScope, actor: Option<i64>) -> bool {
     let is_party = actor.is_some() && (deal.seller_usr_id == actor || deal.buyer_usr_id == actor);
     match scope {
-        // Рынок: только живые предложения. Черновики, сделки в работе и
-        // завершённые на общей доске не висят.
+        // The market: live listings only. Drafts, deals in progress and
+        // finished ones do not hang on the public board.
+        // A taken lot leaves the board: while the hold lasts nobody else can
+        // touch it, so showing it as available would be a lie.
         BoardScope::All => deal.del_status == "listed" && !deal.is_expired(),
-        // Витрина состоявшихся сделок — публичная, вход не нужен.
+        // The record of completed deals is public; no sign-in needed.
         BoardScope::Settled => deal.del_status == "released",
         BoardScope::Mine => is_party,
         BoardScope::Arbitration => is_party && deal.del_status == "dispute",
     }
 }
 
-/// Собирает строки доски — общий путь для страницы и для живого поиска.
+/// Builds the board's rows — one path for the page and for live search.
 ///
-/// # Параметры
-/// * `filter` — сторона и строка поиска
-/// * `scope` — какой набор показывать
-/// * `actor` — текущий пользователь (для «моих» и «арбитража»)
+/// # Parameters
+/// * `filter` — side and query string
+/// * `scope` — which set to show
+/// * `actor` — the current user (for "mine" and "arbitration")
 ///
-/// # Возвращает
-/// * `(строки, всего в наборе)`
+/// # Returns
+/// * `(rows, total in the set)`
 pub async fn board_rows(
     filter: &BoardFilter,
     scope: BoardScope,
@@ -211,11 +218,7 @@ fn strip_html_one_line(s: &str) -> String {
         }
     }
     let t = out.split_whitespace().collect::<Vec<_>>().join(" ");
-    if t.is_empty() {
-        "—".into()
-    } else {
-        t
-    }
+    if t.is_empty() { "—".into() } else { t }
 }
 
 fn description(d: &Deal) -> String {
@@ -227,12 +230,12 @@ fn description(d: &Deal) -> String {
         .unwrap_or_else(|| "—".into())
 }
 
-/// Дата для таблицы и карточки — короткий вид `2026-08-05`.
+/// Date for tables and cards — the short form `2026-08-05`.
 fn date_short(ts: Timestamp) -> String {
     ts.format("%Y-%m-%d")
 }
 
-/// Дата с временем — для карточки сделки.
+/// Date with time — for the deal card.
 fn date_full(ts: Timestamp) -> String {
     ts.format("%Y-%m-%d %H:%M")
 }
@@ -313,44 +316,45 @@ impl Page for DealNewPage {
     async fn load(&self, ctx: &mut RequestContext) -> WsResult<()> {
         ctx.insert("user", &ctx.user.is_some());
         ctx.insert("offer_types", &OFFER_TYPES);
-        // срок действия предложения по умолчанию — +31 день
+        // default listing lifetime — +31 days
         let default_deadline =
             Timestamp(Timestamp::now().raw() + crate::models::deal::DEFAULT_LISTING_DAYS * 86_400);
         ctx.insert("default_deadline", &date_short(default_deadline));
         // default side from query ?side=request
-        let side = ctx
-            .query
-            .get("side")
-            .map(|s| s.as_str())
-            .unwrap_or("offer");
-        let side = if side == "request" { "request" } else { "offer" };
+        let side = ctx.query.get("side").map(|s| s.as_str()).unwrap_or("offer");
+        let side = if side == "request" {
+            "request"
+        } else {
+            "offer"
+        };
         ctx.insert("listing_side", &side);
         Ok(())
     }
 }
 
-/// Кеш баланса страхового фонда: сеть спрашиваем не чаще раза в минуту,
-/// иначе каждый рендер доски стоил бы запроса в цепь.
-static FUND_CACHE: std::sync::OnceLock<
-    tokio::sync::RwLock<Option<(std::time::Instant, String)>>,
-> = std::sync::OnceLock::new();
+/// Cache for the insurance fund balance: the chain is asked at most once a
+/// minute, otherwise every render of the board would cost an RPC call.
+static FUND_CACHE: std::sync::OnceLock<tokio::sync::RwLock<Option<(std::time::Instant, String)>>> =
+    std::sync::OnceLock::new();
 
 const FUND_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// Баланс страхового фонда для показа на доске.
+/// Insurance fund balance, for display on the board.
 ///
-/// Читается из цепи по адресу фонда — цифра проверяемая, любой может
-/// открыть эксплорер и увидеть ту же сумму.
+/// Read from the chain at the fund's address — a checkable figure: anyone can
+/// open the explorer and see the same amount.
 ///
-/// # Возвращает
-/// * `Some(строка)` — например `"12.50"` · `None` — цепь не настроена
-///   или недоступна (тогда блок просто не показываем)
-async fn insurance_fund_usdc(constants: &std::collections::HashMap<String, serde_json::Value>) -> Option<String> {
+/// # Returns
+/// * `Some(string)` — e.g. `"12.50"` · `None` — the chain is unconfigured or
+///   unreachable, in which case the block is simply not shown
+async fn insurance_fund_usdc(
+    constants: &std::collections::HashMap<String, serde_json::Value>,
+) -> Option<String> {
     let cache = FUND_CACHE.get_or_init(|| tokio::sync::RwLock::new(None));
-    if let Some((at, value)) = cache.read().await.as_ref() {
-        if at.elapsed() < FUND_CACHE_TTL {
-            return Some(value.clone());
-        }
+    if let Some((at, value)) = cache.read().await.as_ref()
+        && at.elapsed() < FUND_CACHE_TTL
+    {
+        return Some(value.clone());
     }
 
     let config = crate::chain::types::ChainConfig::from_constants(constants)?;
@@ -358,23 +362,23 @@ async fn insurance_fund_usdc(constants: &std::collections::HashMap<String, serde
     let raw = match reader.insurance_balance().await {
         Ok(v) => v,
         Err(e) => {
-            tracing::warn!(error = %e, "не прочитал баланс страхового фонда");
+            tracing::warn!(error = %e, "could not read the insurance fund balance");
             return None;
         }
     };
 
-    // USDC — 6 знаков; показываем два, как деньги
+    // USDC has 6 decimals; we show two, the way money reads
     let units: u128 = raw.to::<u128>();
     let value = format!("{}.{:02}", units / 1_000_000, (units % 1_000_000) / 10_000);
     *cache.write().await = Some((std::time::Instant::now(), value.clone()));
     Some(value)
 }
 
-/// Всё, что нужно кошельку покупателя, чтобы оплатить замок.
+/// Everything the buyer's wallet needs in order to fund the lock.
 #[derive(Debug, Serialize)]
 struct ChainParams {
     chain_id: u64,
-    /// hex chain id для `wallet_switchEthereumChain`
+    /// hex chain id for `wallet_switchEthereumChain`
     chain_id_hex: String,
     rpc_url: String,
     usdc: String,
@@ -382,16 +386,16 @@ struct ChainParams {
     deal_id: String,
     condition_hash: String,
     seller: String,
-    /// Сумма в базовых единицах USDC, строкой — JS теряет точность на больших числах.
+    /// Amount in USDC base units, as a string — JS loses precision on big numbers.
     amount_units: String,
     deadline: u64,
 }
 
-/// Собирает параметры оплаты. `None`, если цепь не настроена или сделке
-/// нечего оплачивать (нет продавца, суммы или срока).
+/// Builds the payment parameters. `None` when the chain is unconfigured, or
+/// the deal has nothing to pay for (no seller, no amount, no deadline).
 ///
-/// Настройки берутся из константы `chain` в базе — она приезжает в
-/// глобальный контекст при старте ws и правится через `/admin/constants/`.
+/// Settings come from the `chain` constant, which lands in the global context
+/// when ws starts and is edited through `/admin/constants/`.
 fn chain_params(deal: &Deal, ctx: &RequestContext) -> Option<ChainParams> {
     let config = crate::chain::types::ChainConfig::from_constants(&ctx.global.constants)?;
     if !config.mode().is_live() || config.chain_id == 0 {
@@ -463,8 +467,8 @@ impl Page for DealShowPage {
             .map(|id| verified_users.contains(&id))
             .unwrap_or(false);
 
-        // Роли актора — по ним шаблон показывает только СВОИ кнопки.
-        // Правила обязаны совпадать с `ws_handlers::deals::authorize_action`.
+        // The actor's roles — the template shows only the buttons that belong
+        // to them. These rules must match `ws_handlers::deals::authorize_action`.
         let actor = ctx.user.as_ref().map(|u| u.usr_id);
         let is_seller = actor.is_some() && actor == deal.seller_usr_id;
         let is_buyer = actor.is_some() && actor == deal.buyer_usr_id;
@@ -475,8 +479,11 @@ impl Page for DealShowPage {
         };
 
         ctx.insert("deal_no", &deal.public_no());
-        ctx.insert("addresses", &crate::models::deal::address_count(&deal.prefix));
-        // Сеть — это и есть товар: до оплаты наружу уходит только размер.
+        ctx.insert(
+            "addresses",
+            &crate::models::deal::address_count(&deal.prefix),
+        );
+        // The network is the goods: before funding, only its size goes out.
         let may_see_prefix = deal.may_see_prefix(actor);
         ctx.insert("may_see_prefix", &may_see_prefix);
         ctx.insert(
@@ -491,11 +498,11 @@ impl Page for DealShowPage {
             "oracle_auto",
             &(deal.rir == crate::models::deal::RIR_WITH_ORACLE),
         );
-        // цена уходит в шаблон сырым FixedN — форматирует фильтр, не f64
+        // the price reaches the template as raw FixedN — a filter formats it, not an f64
         ctx.insert("price_raw", &deal.del_amount.raw());
 
-        // Параметры для кошелька покупателя: approve + fund делает браузер.
-        // Суммы отдаём строкой — в JS числа больше 2^53 теряют точность.
+        // Parameters for the buyer's wallet: approve and fund happen in the
+        // browser. Amounts go as strings — beyond 2^53 JS loses precision.
         let chain = chain_params(&deal, ctx);
         ctx.insert("chain_ready", &chain.is_some());
         if let Some(c) = chain {
@@ -510,6 +517,12 @@ impl Page for DealShowPage {
                 .unwrap_or_else(|| "—".into()),
         );
         ctx.insert("is_expired", &deal.is_expired());
+        ctx.insert("reserve_expired", &deal.reserve_expired());
+        ctx.insert(
+            "reserved_until",
+            &deal.reserved_until.map(date_full).unwrap_or_default(),
+        );
+        ctx.insert("declines", &deal.declines);
         ctx.insert("is_seller", &is_seller);
         ctx.insert("is_buyer", &is_buyer);
         ctx.insert("is_creator", &is_creator);

@@ -1,5 +1,5 @@
 -- users2wallets — EVM wallet ↔ forge user (EscrowNad / Monad).
--- Run once on escrownad.com DB (Hyperion or local tunnel).
+-- Run once against the escrownad.com database.
 
 CREATE TABLE IF NOT EXISTS public.users2wallets (
     u2w_id      bigserial PRIMARY KEY,

@@ -95,7 +95,7 @@
 
           <div class="app-ctl">
             {{ <field name="from_org" type="text" label="6. Your organisation (optional)"
-                       placeholder="e.g. Call Center Poland S.A" /> }}
+                       placeholder="e.g. Example Telecom Ltd" /> }}
             <p class="app-ctl__hint">
               The legal name holding this block in the registry. <strong>Optional.</strong>
               The oracle watches the network itself and waits for a new transfer record to
@@ -191,11 +191,12 @@
 
         <div class="app-ctl app-ctl--actions">
           <div class="app-form__actions">
-            {{ <button label="Publish to market" type="submit" variant="primary" handler="deals_save" /> }}
+            {{ <button label="Submit for review" type="submit" variant="primary" handler="deals_save" /> }}
             <a class="app-top__btn" href="/deals/">Cancel</a>
           </div>
           <p class="app-ctl__hint">
-            <strong>Publish to market</strong> puts the listing on the board for others.
+            <strong>Submit for review</strong> sends the listing to an operator. Once approved
+            it appears on the market board — usually within minutes.
             <strong>Cancel</strong> goes back without saving.
           </p>
         </div>

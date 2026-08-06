@@ -1,22 +1,23 @@
-//! Расчётный слой: USDC-замок EscrowLock на Monad.
+//! Settlement layer: the EscrowLock USDC lock on Monad.
 //!
-//! Деньги покупателя физически уходят с его кошелька на контракт в момент
-//! «я хочу» и лежат там до развязки. Забрать их обратно нельзя ни ему, ни
-//! нам: только `release` продавцу (по факту RIPE), `refund` покупателю или
-//! `refundAfterDeadline` им самим по истечении срока.
+//! The buyer's money physically leaves their wallet for the contract at the
+//! moment they commit, and sits there until the deal resolves. Neither they
+//! nor we can pull it back: only `release` to the seller (against the registry
+//! fact), `refund` to the buyer, or `refundAfterDeadline` taken by the buyer
+//! themselves once the deadline has passed.
 //!
-//! Контракт — общий пул: USDC всех сделок лежат на одном адресе, учёт
-//! внутри по `dealId`. Наружу уходит только отпечаток сделки — ни сети,
-//! ни организаций, ни описания в цепи нет.
+//! The contract is a shared pool: USDC from every deal sits at one address,
+//! accounted internally by `dealId`. Only the deal's fingerprint goes on
+//! chain — no network, no organisations, no description.
 //!
-//! `CHAIN_MODE=mock` (умолчание) — режим без цепи для локальной работы.
+//! Mock mode (the default) runs without a chain, for local work.
 
 pub mod core;
 pub mod types;
 
 use forge_core::hash::sha256_hex;
 
-/// Идентификатор сделки в цепи как hex-строка — для логов и UI.
+/// The deal's on-chain identifier as a hex string — for logs and the UI.
 pub fn deal_id_hex(del_hash: &str) -> String {
     let h = sha256_hex(del_hash.as_bytes());
     format!("0x{h}")

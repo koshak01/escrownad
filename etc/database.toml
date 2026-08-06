@@ -1,12 +1,12 @@
 # escrownad-database
-# IPC-демон. Подключается к Postgres, обслуживает запросы от ws/web/notifier.
+# The IPC daemon. Connects to Postgres and serves ws/web/notifier.
 #
 # Postgres:
-#   - если доступен unix-сокет — используется он, без пароля (peer/trust auth);
-#   - иначе TCP, пароль из PGPASSWORD env или ~/.pgpass.
-# Имя сокета IPC — в escrownad::sockets::DATABASE.
+#   - a unix socket is used when available, with no password (peer/trust auth);
+#   - otherwise TCP, with the password from PGPASSWORD or ~/.pgpass.
+# The IPC socket path is in escrownad::sockets::DATABASE.
 #
-# db = escrownad.com — домен/имя БД (Гиперион). НЕ forge.foothold.me.
+# db = escrownad.com — the database name matches the domain.
 
 [postgres]
 host = "127.0.0.1"

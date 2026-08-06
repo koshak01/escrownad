@@ -1,8 +1,8 @@
-//! Главная страница — `/`.
+//! Home page — `/`.
 //!
-//! Минимальный пример Page: путь, шаблон, пустой load. Реальные проекты
-//! в `load` дёргают `app_context().db.*` чтобы достать данные и положить
-//! в `ctx.insert("key", &value)` для Tera-шаблона.
+//! A minimal Page: a path, a template and an empty load. Real projects call
+//! `app_context().db.*` inside `load` to fetch data and place it into
+//! `ctx.insert("key", &value)` for the Tera template.
 
 use async_trait::async_trait;
 use forge_ws::{Page, RequestContext, WsResult};

@@ -1,8 +1,10 @@
-//! escrownad-web — тонкий HTTP-фасад. Прокси рендера в escrownad-ws через IPC
-//! + раздача статики (`/static` — проектная, `/shared` — ядерная forge/static).
+//! escrownad-web — a thin HTTP facade. It proxies rendering to escrownad-ws
+//! over IPC and serves static files: `/static` is the project's, `/shared` the
+//! platform's.
 //!
-//! Вся обвязка (WebConfig + proxy_handler + Router) — в forge_web::bootstrap.
-//! Проектный bin сводится к загрузке конфига, выбору ServeMode и вызову serve.
+//! All the plumbing (WebConfig + proxy_handler + Router) lives in
+//! forge_web::bootstrap. The project binary comes down to loading the config,
+//! picking a ServeMode and calling serve.
 
 use anyhow::{Context, Result, bail};
 use escrownad::sockets;
@@ -12,9 +14,10 @@ use tracing::info;
 
 async fn run() -> Result<()> {
     info!("starting");
-    let cfg: WebConfig = forge_core::config::load_toml("etc/web.toml").context("load etc/web.toml")?;
+    let cfg: WebConfig =
+        forge_core::config::load_toml("etc/web.toml").context("load etc/web.toml")?;
 
-        // Project static/ + shared forge static (../forge/static).
+    // Project static/ + shared forge static (../forge/static).
     let state = WebState::spawn(sockets::WS);
     let app = build_router(state, "static", "../forge/static");
 

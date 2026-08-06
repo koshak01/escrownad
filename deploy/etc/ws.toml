@@ -1,5 +1,5 @@
 # escrownad-ws — production.
-# Hyperion: ln -sf deploy/etc/ws.toml etc/ws.toml
+# On the server: ln -sf deploy/etc/ws.toml etc/ws.toml
 
 [ws]
 db_wait_ms = 10000

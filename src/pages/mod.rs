@@ -1,4 +1,4 @@
-//! Публичные + admin pages.
+//! Public pages plus admin pages.
 
 pub mod about;
 pub mod admin;

@@ -1,5 +1,5 @@
 # escrownad-web — production (escrownad.com).
-# Hyperion: ln -sf deploy/etc/web.toml etc/web.toml
+# On the server: ln -sf deploy/etc/web.toml etc/web.toml
 
 [server]
 mode        = "unix"

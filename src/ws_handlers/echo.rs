@@ -1,7 +1,7 @@
-//! Демо WS-handler: принимает строку, возвращает её сервер-рендеренным
-//! HTML-фрагментом через `ActionResp::replace_with_success`. Демонстрирует
-//! WS-push HTML паттерн из `forge/docs/CONVENTIONS.md §7.5` —
-//! никаких `window.location.reload()`, всё обновляется in-place.
+//! Demo ws handler: takes a string and returns it as a server-rendered HTML
+//! fragment through `ActionResp::replace_with_success`. It demonstrates the
+//! WS-pushed HTML pattern — no `window.location.reload()`, everything updates
+//! in place.
 
 use forge_ws::{ActionResp, HtmlReplace};
 use serde::Deserialize;
@@ -32,6 +32,6 @@ pub async fn echo(p: EchoParams) -> Result<ActionResp, String> {
             selector: "#echo-result".into(),
             html,
         }],
-        "ECHO принят",
+        "ECHO received",
     ))
 }

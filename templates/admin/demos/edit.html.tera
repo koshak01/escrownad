@@ -1,7 +1,7 @@
-{# ЭТАЛОН формы new/edit доменной сущности. Копия паттерна ядерного
-   templates/admin/constants/edit.html.tera. Page::load() кладёт `demo`
-   (dmo_id=0 для new). Имена полей = имена в модели/params/SQL (сквозная
-   структура, 03_handlers.md). #}
+{# Reference new/edit form for a domain entity. Mirrors the platform pattern in
+   templates/admin/constants/edit.html.tera. Page::load() supplies `demo`, with
+   dmo_id=0 for a new one. Field names match the model, the params and the SQL —
+   one struct end to end. #}
 {% extends "_base.html.tera" %}
 
 {% block title %}Demo · {{ constants.site_title | default(value="forge") }}{% endblock %}
@@ -12,19 +12,19 @@
     {{ <hidden name="id" value={demo.dmo_id | str} data_type="integer" /> }}
 
     <div class="admin-form__row">
-      {{ <field name="dmo_code" label="Код" placeholder="alpha / beta / ..."
+      {{ <field name="dmo_code" label="Code" placeholder="alpha / beta / ..."
                 value={demo.dmo_code | default(value="", boolean=true)} /> }}
 
-      {{ <bool_toggle name="dmo_is_enable" label="Активно" width="narrow"
+      {{ <bool_toggle name="dmo_is_enable" label="Active" width="narrow"
                  checked={demo.dmo_is_enable} /> }}
     </div>
 
-    {{ <field name="dmo_title" label="Заголовок"
-              placeholder="человекочитаемый заголовок"
+    {{ <field name="dmo_title" label="Title"
+              placeholder="a human-readable title"
               value={demo.dmo_title | default(value="", boolean=true)} /> }}
 
-    {{ <field name="dmo_note" label="Заметка" width="wide"
-              placeholder="произвольный текст"
+    {{ <field name="dmo_note" label="Note" width="wide"
+              placeholder="free-form text"
               value={demo.dmo_note | default(value="", boolean=true)} /> }}
 
     {{ <form_actions handler="demos_save" cancel_url="/admin/demos/" /> }}

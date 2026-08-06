@@ -1,8 +1,8 @@
-# escrownad-web — http endpoint, тонкий прокси к ws.
+# escrownad-web — the HTTP endpoint, a thin proxy to ws.
 
 [server]
-# Режим: "tcp" | "unix" — РОВНО один, взаимоисключающе.
+# Mode: "tcp" | "unix" — EXACTLY one, mutually exclusive.
 mode        = "tcp"
 socket_path = "/tmp/escrownad_web.sock"
-# Dev-пара: 4100/4101 (свободны на машине Петра, 2026-08-04).
+# Dev pair: 4100/4101 (free on the development machine).
 http_port   = 4100

@@ -1,57 +1,73 @@
-//! Санация HTML из wysiwyg-редактора (Quill).
+//! Sanitising HTML from the wysiwyg editor (Quill).
 //!
-//! Описание и условия сделки пользователь пишет в редакторе, то есть в базу
-//! приходит HTML. Выводить его на странице сделки можно только через `| safe`,
-//! а `| safe` над непроверенным вводом — это XSS: любой владелец кошелька
-//! опубликовал бы лот со скриптом.
+//! The description and terms of a deal are written in an editor, so what
+//! reaches the database is HTML. Rendering it on the deal page requires
+//! `| safe`, and `| safe` over unchecked input is an XSS hole: any wallet
+//! holder could publish a listing carrying a script.
 //!
-//! Поэтому HTML чистится ЗДЕСЬ, на входе, по белому списку тегов. В шаблон
-//! попадает уже безопасная разметка.
+//! So the HTML is cleaned HERE, on the way in, against a whitelist of tags.
+//! What reaches the template is already safe.
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-/// Теги, которые умеет ставить Quill и которые нужны для описания лота.
+/// Tags Quill can produce and that a listing description actually needs.
 const ALLOWED_TAGS: &[&str] = &[
-    "p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "blockquote", "code", "pre",
-    "h3", "h4", "a", "span",
+    "p",
+    "br",
+    "strong",
+    "b",
+    "em",
+    "i",
+    "u",
+    "s",
+    "ul",
+    "ol",
+    "li",
+    "blockquote",
+    "code",
+    "pre",
+    "h3",
+    "h4",
+    "a",
+    "span",
 ];
 
 static CLEANER: LazyLock<ammonia::Builder<'static>> = LazyLock::new(|| {
     let mut builder = ammonia::Builder::default();
     builder
         .tags(HashSet::from_iter(ALLOWED_TAGS.iter().copied()))
-        // ссылки — только href, схемы ограничены ниже
+        // links: href only, and the schemes are restricted below
         .link_rel(Some("noopener noreferrer nofollow"))
         .url_schemes(HashSet::from_iter(["http", "https", "mailto"]));
     builder
 });
 
-/// Чистит HTML из редактора по белому списку тегов.
+/// Cleans editor HTML against a whitelist of tags.
 ///
-/// Порядок работы:
-/// 1. вырезает всё, чего нет в [`ALLOWED_TAGS`] (скрипты, iframe, обработчики);
-/// 2. оставляет у ссылок только безопасные схемы (http/https/mailto);
-/// 3. возвращает `None`, если после чистки не осталось текста — чтобы в базу
-///    не попадала пустая разметка вида `<p><br></p>`.
+/// How it works:
+/// 1. strips anything outside [`ALLOWED_TAGS`] — scripts, iframes, handlers;
+/// 2. keeps only safe schemes on links (http/https/mailto);
+/// 3. returns `None` when nothing but markup is left, so that empty shells
+///    like `<p><br></p>` never reach the database.
 ///
-/// # Параметры
-/// * `raw` — исходный HTML из wysiwyg
+/// # Parameters
+/// * `raw` — the original HTML from the wysiwyg
 ///
-/// # Возвращает
-/// * `Option<String>` — очищенный HTML либо `None` для пустого содержимого
+/// # Returns
+/// * `Option<String>` — cleaned HTML, or `None` for empty content
 pub fn rich_text(raw: &str) -> Option<String> {
     let clean = CLEANER.clean(raw).to_string();
     if is_blank(&clean) { None } else { Some(clean) }
 }
 
-/// Плоский текст без разметки — для таблиц, заголовков вкладки, писем.
+/// Flat text without markup — for tables, tab titles and emails.
 ///
-/// # Параметры
-/// * `html` — размеченный текст
+/// # Parameters
+/// * `html` — the marked-up text
 ///
-/// # Возвращает
-/// * `String` — одна строка без тегов и лишних пробелов
+/// # Returns
+/// * `String` — a single line, no tags and no double spaces
 pub fn plain_text(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut in_tag = false;
@@ -69,7 +85,7 @@ pub fn plain_text(html: &str) -> String {
         .join(" ")
 }
 
-/// Содержимое пустое: ни текста, ни картинок — только пустые теги.
+/// Is the content empty: no text, no images — only hollow tags.
 fn is_blank(html: &str) -> bool {
     plain_text(html).is_empty()
 }

@@ -6,7 +6,7 @@
 <main class="app-main">
 
   <div class="board-bar" data-board data-scope="{{ scope }}">
-    {# набор: рынок / мои / споры #}
+    {# set: market / mine / disputes #}
     <div class="board-bar__group">
       <a class="fchip{% if scope == 'all' %} is-on{% endif %}" href="/deals/">Offers</a>
       <a class="fchip{% if scope == 'settled' %} is-on{% endif %}" href="/deals/?scope=settled">Settled</a>
@@ -14,14 +14,14 @@
       <a class="fchip{% if scope == 'arbitration' %} is-on{% endif %}" href="/deals/?scope=arbitration">Arbitration</a>
     </div>
 
-    {# сторона сделки #}
+    {# side of the deal #}
     <div class="board-bar__group">
       <button type="button" class="fchip{% if filter.side == '' %} is-on{% endif %}" data-side="">All</button>
       <button type="button" class="fchip{% if filter.side == 'offer' %} is-on{% endif %}" data-side="offer">Offer</button>
       <button type="button" class="fchip{% if filter.side == 'request' %} is-on{% endif %}" data-side="request">Request</button>
     </div>
 
-    {# живой поиск: без кнопки, таблица приходит с сервера по мере набора #}
+    {# live search: no button, the table arrives from the server as you type #}
     <div class="board-bar__search">
       <span class="ico ico--search" aria-hidden="true"></span>
       <input class="board-bar__input" type="search" data-board-search

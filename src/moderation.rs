@@ -1,12 +1,13 @@
-//! Модерация заявок: карточка в Telegram с кнопками Approve / Decline.
+//! Listing review: a Telegram card with Approve / Decline buttons.
 //!
-//! Лот не попадает на доску сам по себе. После отправки он ждёт решения
-//! оператора, а оператор получает в Telegram всё, что нужно для решения:
-//! параметры лота, что говорит о сети реестр, сколько денег на кошельке
-//! заявителя и впервые ли этот кошелёк у нас.
+//! A lot never reaches the board by itself. Once submitted it waits for an
+//! operator, and the operator gets everything needed to decide in one Telegram
+//! message: the listing's parameters, what the registry says about the network,
+//! how much money is in the applicant's wallet, and whether we have seen that
+//! wallet before.
 //!
-//! Тексты — только английские: продукт англоязычный, оператор читает то же,
-//! что и пользователи.
+//! The text is English only: the product is English, and the operator reads
+//! exactly what the users read.
 
 use forge_fixed_n::FixedN;
 use serde::Serialize;
@@ -14,29 +15,29 @@ use serde::Serialize;
 use crate::app_context;
 use crate::models::Deal;
 
-/// Префикс callback-кнопок: `dm:<короткий хэш>:<a|d>`.
+/// Callback button prefix: `dm:<short hash>:<a|d>`.
 ///
-/// Telegram ограничивает `callback_data` 64 байтами, а полный хэш сделки —
-/// сам по себе 64 символа. Поэтому в кнопку уходит первые 16 символов: этого
-/// хватает, чтобы найти сделку однозначно.
+/// Telegram caps `callback_data` at 64 bytes, and a full deal hash is 64
+/// characters on its own. So the button carries the first 16 — enough to find
+/// the deal unambiguously.
 pub const CALLBACK_PREFIX: &str = "dm";
 
-/// Сколько символов хэша уходит в кнопку.
+/// How many characters of the hash go into the button.
 pub const SHORT_HASH_LEN: usize = 16;
 
-/// Короткий вид хэша для callback-кнопки.
+/// The short form of a hash, for a callback button.
 pub fn short_hash(del_hash: &str) -> String {
     del_hash.chars().take(SHORT_HASH_LEN).collect()
 }
 
-/// Код шаблона в таблице `templates`.
+/// Template key in the `templates` table.
 pub const TEMPLATE_CODE: &str = "deal_moderation";
 
-/// Всё, что оператор видит в сообщении.
+/// Everything the operator sees in the message.
 #[derive(Debug, Serialize)]
 pub struct ModerationCard {
     pub deal_hash: String,
-    /// Короткий хэш — уходит в callback_data кнопок.
+    /// Short hash — goes into the buttons' callback_data.
     pub deal_short: String,
     pub deal_no: String,
     pub side: String,
@@ -52,19 +53,19 @@ pub struct ModerationCard {
     pub terms: String,
     pub wallet: String,
     pub wallet_short: String,
-    /// Баланс USDC заявителя, как строка с двумя знаками.
+    /// The applicant's USDC balance, as a string with two decimals.
     pub wallet_usdc: String,
-    /// Родная монета сети — на неё платится газ.
+    /// The chain's native coin — what gas is paid in.
     pub wallet_native: String,
-    /// Кошелёк раньше у нас не встречался.
+    /// We have not seen this wallet before.
     pub wallet_is_new: bool,
-    /// Сколько сделок уже было у этого кошелька.
+    /// How many deals this wallet has had already.
     pub wallet_deals: i64,
-    /// Что реестр отвечает по этой сети прямо сейчас.
+    /// What the registry says about this network right now.
     pub registry_holder: String,
     pub registry_type: String,
     pub registry_country: String,
-    /// Держатель в реестре совпал с тем, что указал заявитель.
+    /// The registry's holder matches what the applicant claimed.
     pub registry_matches: bool,
     pub url: String,
 }
@@ -91,19 +92,23 @@ fn native_str(raw: alloy::primitives::U256) -> String {
 
 fn money(amount: FixedN<8>) -> String {
     let raw = amount.raw();
-    format!("{}.{:02}", raw / 100_000_000, (raw % 100_000_000) / 1_000_000)
+    format!(
+        "{}.{:02}",
+        raw / 100_000_000,
+        (raw % 100_000_000) / 1_000_000
+    )
 }
 
-/// Собирает карточку заявки для оператора.
+/// Builds the review card for the operator.
 ///
-/// Сеть спрашивается у реестра здесь же — оператор видит не то, что вписал
-/// заявитель, а то, что отвечает RIPE. Балансы читаются из цепи. Если сеть
-/// или цепь недоступны, поля остаются пустыми: решение всё равно можно
-/// принять, просто с меньшим знанием.
+/// The network is queried against the registry right here — the operator sees
+/// what RIPE answers, not what the applicant typed. Balances are read from the
+/// chain. If either is unreachable the fields stay empty: a decision is still
+/// possible, just with less to go on.
 pub async fn build_card(deal: &Deal) -> ModerationCard {
     let wallet = deal.seller_wallet.clone().unwrap_or_default();
 
-    // сколько сделок было у этого кошелька раньше — «новый» значит первый лот
+    // how many deals this wallet had before — "new" means this is its first
     let wallet_deals = match deal.seller_usr_id {
         Some(uid) => app_context()
             .db
@@ -114,23 +119,22 @@ pub async fn build_card(deal: &Deal) -> ModerationCard {
         None => 0,
     };
 
-    // балансы из цепи
+    // balances from the chain
     let (mut usdc, mut native) = (String::new(), String::new());
-    if !wallet.is_empty() {
-        if let Some(config) = chain_config().await {
-            if let Some(reader) = crate::chain::core::ChainReader::new(&config) {
-                match reader.wallet_balances(&wallet).await {
-                    Ok((u, n)) => {
-                        usdc = usdc_str(u);
-                        native = native_str(n);
-                    }
-                    Err(e) => tracing::warn!(error = %e, "не прочитал баланс кошелька"),
-                }
+    if !wallet.is_empty()
+        && let Some(config) = chain_config().await
+        && let Some(reader) = crate::chain::core::ChainReader::new(&config)
+    {
+        match reader.wallet_balances(&wallet).await {
+            Ok((u, n)) => {
+                usdc = usdc_str(u);
+                native = native_str(n);
             }
+            Err(e) => tracing::warn!(error = %e, "could not read the wallet balance"),
         }
     }
 
-    // что реестр говорит о сети
+    // what the registry says about the network
     let (mut holder, mut rtype, mut country) = (String::new(), String::new(), String::new());
     if !deal.prefix.trim().is_empty() {
         match crate::observer::rdap::lookup(&deal.prefix).await {
@@ -140,7 +144,7 @@ pub async fn build_card(deal: &Deal) -> ModerationCard {
                 country = record.country;
             }
             Ok(None) => holder = "NOT FOUND IN REGISTRY".into(),
-            Err(e) => tracing::warn!(error = %e, "реестр недоступен при модерации"),
+            Err(e) => tracing::warn!(error = %e, "registry unreachable during review"),
         }
     }
     let claimed = deal.from_org.as_deref().unwrap_or("").trim().to_lowercase();
@@ -178,7 +182,7 @@ pub async fn build_card(deal: &Deal) -> ModerationCard {
     }
 }
 
-/// Настройки цепи из констант — общий помощник.
+/// Chain settings out of the constants — a shared helper.
 async fn chain_config() -> Option<crate::chain::types::ChainConfig> {
     let constants = app_context().db.get_constants().await.ok()?;
     let mut map = std::collections::HashMap::new();
@@ -190,13 +194,14 @@ async fn chain_config() -> Option<crate::chain::types::ChainConfig> {
     crate::chain::types::ChainConfig::from_constants(&map)
 }
 
-/// Отправляет заявку оператору.
+/// Sends the listing to the operator.
 ///
-/// Ошибку отправки не поднимаем наверх: заявка уже сохранена и ждёт
-/// решения, а недоступный Telegram не повод показывать пользователю сбой.
+/// A delivery failure is not raised upward: the listing is already saved and
+/// waiting for a decision, and Telegram being down is no reason to show the
+/// user an error.
 pub async fn notify(deal: &Deal) {
     let card = build_card(deal).await;
     if let Err(e) = app_context().notifier.send(TEMPLATE_CODE, &card).await {
-        tracing::error!(deal = %deal.del_hash, error = %e, "не отправил заявку на модерацию");
+        tracing::error!(deal = %deal.del_hash, error = %e, "could not send the listing for review");
     }
 }

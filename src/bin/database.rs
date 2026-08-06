@@ -1,16 +1,16 @@
-//! escrownad-database — IPC демон. Подключается к Postgres, обслуживает запросы.
+//! escrownad-database — the IPC daemon. Connects to Postgres and serves requests.
 //!
-//! Системные команды (Ping/GetSalt/GetConstants/UpdateConstant/ReloadConstant)
-//! обрабатываются ядерным макросом `forge_db::system_commands!`. Admin-CRUD —
-//! делегируется в `forge_admin::ipc::dispatch`. Доменных команд в escrownad нет;
-//! проекты добавляют свои варианты `DbCommand` и обрабатывают их здесь.
+//! System commands (Ping/GetSalt/GetConstants/UpdateConstant/ReloadConstant)
+//! are handled by the platform macro `forge_db::system_commands!`. Admin CRUD
+//! is delegated to `forge_admin::ipc::dispatch`. A project adds its own
+//! `DbCommand` variants and handles them here.
 
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use escrownad::{Constants, DbCommand, DbResponse, sockets};
 use forge_db::{ListFilter, pg};
 use forge_ipc::{CommandHandler, serve_ipc};
-use escrownad::{Constants, DbCommand, DbResponse, sockets};
 use serde::Deserialize;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
@@ -45,9 +45,9 @@ impl DbState {
 
 impl CommandHandler<DbCommand, DbResponse> for DbState {
     async fn handle(&self, cmd: DbCommand) -> Result<DbResponse, String> {
-        // Системные ветки покрывает forge_db::system_commands! макрос ниже.
-        // Если cmd оказалась системной — макрос сам ответит. Иначе возвращает
-        // Err(cmd) обратно для дальнейшей обработки.
+        // The system arms are covered by the forge_db::system_commands! macro
+        // below. If the command turns out to be a system one the macro answers
+        // it; otherwise it hands the command back as Err(cmd).
         let cmd = match self.handle_system_cmd(cmd).await {
             Ok(result) => return result,
             Err(other) => other,
@@ -65,15 +65,17 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 Ok(DbResponse::Admin(resp))
             }
 
-            // ── ЭТАЛОН: обработка доменных команд demo-сущности ──────────────
-            // `list_*_filtered`-«handler» (§4 09_admin_lists): фильтр накладывается
-            // на `Demo::query()`, безопасный ORDER BY — через whitelist
-            // `order_clause` (колонки зарегистрированы `register_list_model` ниже).
+            // ── Reference: handling the demo entity's domain commands ───────
+            // The `list_*_filtered` handler: the filter layers onto
+            // `Demo::query()`, and a safe ORDER BY comes from the `order_clause`
+            // whitelist — columns are registered by `register_list_model` below.
             DbCommand::ListDemosFiltered { filter, sort } => {
                 use escrownad::models::Demo;
                 let demos = filter
                     .apply(Demo::query())
-                    .order(forge_admin::handlers::order_clause("demos", &sort, "dmo_code"))
+                    .order(forge_admin::handlers::order_clause(
+                        "demos", &sort, "dmo_code",
+                    ))
                     .fetch_all(&self.pool)
                     .await
                     .map_err(|e| e.to_string())?;
@@ -118,7 +120,9 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 use escrownad::models::Deal;
                 let deals = filter
                     .apply(Deal::query())
-                    .order(forge_admin::handlers::order_clause("deals", &sort, "del_id"))
+                    .order(forge_admin::handlers::order_clause(
+                        "deals", &sort, "del_id",
+                    ))
                     .fetch_all(&self.pool)
                     .await
                     .map_err(|e| e.to_string())?;
@@ -131,7 +135,7 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 Ok(DbResponse::Deal(deal))
             }
             DbCommand::GetDealByHashPrefix { prefix } => {
-                // Ищем по началу хэша — в callback-кнопку влезает 16 символов.
+                // Look up by hash prefix — a callback button fits 16 characters.
                 let deal: Option<escrownad::models::Deal> = forge_db::sqlx::query_as(
                     "SELECT * FROM deals WHERE del_hash LIKE $1 || '%' LIMIT 1",
                 )
@@ -156,17 +160,16 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                 // Same as password login, but identity = EVM address + signature.
                 // New users: usr_is_staff=false, role "user" (never admin),
                 // link users2wallets + configs2users.wallet_address.
-                let existing: Option<(i64,)> = forge_db::sqlx::query_as(include_str!(
-                    "../../sqls/wallets_find_user.sql"
-                ))
-                .bind(&address)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(|e| e.to_string())?;
+                let existing: Option<(i64,)> =
+                    forge_db::sqlx::query_as(include_str!("../../sqls/wallets_find_user.sql"))
+                        .bind(&address)
+                        .fetch_optional(&self.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
 
                 if let Some((usr_id,)) = existing {
-                    // Публичный ключ приезжает с каждым входом: у тех, кто
-                    // входил до появления колонки, он появится сам собой.
+                    // The public key arrives with every sign-in, so accounts
+                    // that predate this column fill it in by themselves.
                     let _: (i64,) =
                         forge_db::sqlx::query_as(include_str!("../../sqls/wallets_link.sql"))
                             .bind(usr_id)
@@ -195,13 +198,15 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                     .fetch_one(&self.pool)
                     .await
                     .map_err(|e| e.to_string())?;
-                    return Ok(DbResponse::WalletUser(escrownad::wallet_auth::WalletUserRow {
-                        usr_id,
-                        usr_hash: row.0,
-                        usr_is_staff: row.1,
-                        usr_is_enable: row.2,
-                        is_new: false,
-                    }));
+                    return Ok(DbResponse::WalletUser(
+                        escrownad::wallet_auth::WalletUserRow {
+                            usr_id,
+                            usr_hash: row.0,
+                            usr_is_staff: row.1,
+                            usr_is_enable: row.2,
+                            is_new: false,
+                        },
+                    ));
                 }
 
                 let usr_hash = escrownad::wallet_auth::new_usr_hash();
@@ -215,13 +220,14 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                         .await
                         .map_err(|e| e.to_string())?;
 
-                let _: (i64,) = forge_db::sqlx::query_as(include_str!("../../sqls/wallets_link.sql"))
-                    .bind(usr_id)
-                    .bind(&address)
-                    .bind(&pubkey)
-                    .fetch_one(&self.pool)
-                    .await
-                    .map_err(|e| e.to_string())?;
+                let _: (i64,) =
+                    forge_db::sqlx::query_as(include_str!("../../sqls/wallets_link.sql"))
+                        .bind(usr_id)
+                        .bind(&address)
+                        .bind(&pubkey)
+                        .fetch_one(&self.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
 
                 // Role "user" — not admin/manager
                 forge_db::sqlx::query(include_str!("../../sqls/wallets_assign_user_role.sql"))
@@ -238,33 +244,33 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
                     .await
                     .map_err(|e| e.to_string())?;
 
-                Ok(DbResponse::WalletUser(escrownad::wallet_auth::WalletUserRow {
-                    usr_id,
-                    usr_hash,
-                    usr_is_staff,
-                    usr_is_enable,
-                    is_new: true,
-                }))
+                Ok(DbResponse::WalletUser(
+                    escrownad::wallet_auth::WalletUserRow {
+                        usr_id,
+                        usr_hash,
+                        usr_is_staff,
+                        usr_is_enable,
+                        is_new: true,
+                    },
+                ))
             }
 
             DbCommand::WalletAddressForUser { usr_id } => {
-                let row: Option<(String,)> = forge_db::sqlx::query_as(include_str!(
-                    "../../sqls/wallets_find_by_user.sql"
-                ))
-                .bind(usr_id)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(|e| e.to_string())?;
+                let row: Option<(String,)> =
+                    forge_db::sqlx::query_as(include_str!("../../sqls/wallets_find_by_user.sql"))
+                        .bind(usr_id)
+                        .fetch_optional(&self.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
                 Ok(DbResponse::WalletAddress(row.map(|r| r.0)))
             }
 
             DbCommand::ListVerifiedSellers => {
-                let rows: Vec<(i64,)> = forge_db::sqlx::query_as(include_str!(
-                    "../../sqls/sellers_verified.sql"
-                ))
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| e.to_string())?;
+                let rows: Vec<(i64,)> =
+                    forge_db::sqlx::query_as(include_str!("../../sqls/sellers_verified.sql"))
+                        .fetch_all(&self.pool)
+                        .await
+                        .map_err(|e| e.to_string())?;
                 Ok(DbResponse::VerifiedSellers(
                     rows.into_iter().map(|r| r.0).collect(),
                 ))
@@ -273,7 +279,7 @@ impl CommandHandler<DbCommand, DbResponse> for DbState {
     }
 }
 
-// Макрос разворачивает 5 системных веток в `impl DbState::handle_system_cmd`.
+// The macro expands into five system arms inside `impl DbState::handle_system_cmd`.
 forge_db::system_commands! {
     impl DbState {
         command:  DbCommand,
@@ -285,9 +291,11 @@ forge_db::system_commands! {
 async fn run() -> Result<()> {
     info!("starting");
 
-    let cfg: DbToml = forge_core::config::load_toml("etc/database.toml").context("load etc/database.toml")?;
+    let cfg: DbToml =
+        forge_core::config::load_toml("etc/database.toml").context("load etc/database.toml")?;
 
-    let (url, mode) = pg::connect_string(&cfg.postgres).context("build postgres connection string")?;
+    let (url, mode) =
+        pg::connect_string(&cfg.postgres).context("build postgres connection string")?;
 
     let pool = PgPoolOptions::new()
         .max_connections(cfg.postgres.max_connections)
@@ -316,10 +324,10 @@ async fn run() -> Result<()> {
 
     let state = DbState::new(pool).await.context("init db state")?;
 
-    // ── ЭТАЛОН: whitelist проектной таблицы для generic list-операций ────────
-    // Регистрируем СВОЮ таблицу `demos` — иначе count_rows / inline_toggle /
-    // сортировка по ней отклонятся (ядерные модели засеяны по умолчанию).
-    // Одна строка на таблицу, при старте database-бинаря (§4 09_admin_lists).
+    // ── Reference: whitelisting a project table for generic list operations ─
+    // Register YOUR OWN table `demos` — otherwise count_rows, inline_toggle and
+    // sorting on it are refused. Platform models are seeded by default. One
+    // line per table, at database startup.
     forge_admin::register_list_model(
         "demos",
         forge_admin::ListModelSpec {

@@ -1,4 +1,4 @@
-{# Проектная страница 404 — перекрывает ядерную. #}
+{# The project's own 404 page — overrides the platform one. #}
 {% extends "_base.html.tera" %}
 
 {% block title %}Not found · EscrowNad{% endblock %}

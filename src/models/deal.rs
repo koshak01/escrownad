@@ -11,9 +11,12 @@ use serde::{Deserialize, Serialize};
 pub mod status {
     pub const DRAFT: &str = "draft";
     pub const VERIFIED: &str = "verified";
-    /// Ждёт решения оператора — на доску ещё не попал.
+    /// Waiting for the operator's decision — not on the board yet.
     pub const MODERATION: &str = "moderation";
-    /// Оператор отклонил заявку.
+    /// A buyer has taken the lot: it leaves the board and is held for them
+    /// for a limited time, until the seller confirms the deal.
+    pub const RESERVED: &str = "reserved";
+    /// The operator declined the listing.
     pub const REJECTED: &str = "rejected";
     pub const LISTED: &str = "listed";
     pub const REQUESTED: &str = "requested";
@@ -56,21 +59,21 @@ pub struct Deal {
     #[db(rename = "del_listing_side")]
     #[sqlx(rename = "del_listing_side")]
     pub listing_side: String,
-    /// Организация-владелец в реестре — по ней оракул ищет строку перехода.
+    /// Holder organisation in the registry — the oracle looks for a transfer row by it.
     #[db(rename = "del_from_org")]
     #[sqlx(rename = "del_from_org")]
     pub from_org: Option<String>,
-    /// Организация-получатель. На публикации обычно пуста: покупатель
-    /// известен только после оплаты.
+    /// Receiving organisation. Usually empty at listing time: the buyer is
+    /// only known once the deal is funded.
     #[db(rename = "del_to_org")]
     #[sqlx(rename = "del_to_org")]
     pub to_org: Option<String>,
-    /// Региональный реестр: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
-    /// Автопроверка фактов сейчас есть только для RIPE.
+    /// Regional registry: RIPE | ARIN | APNIC | LACNIC | AFRINIC.
+    /// Automatic fact checking currently exists for RIPE only.
     #[db(rename = "del_rir")]
     #[sqlx(rename = "del_rir")]
     pub rir: String,
-    /// Гео блока — витрина, в поиске факта не участвует.
+    /// Where the block is — display only; takes no part in matching the fact.
     #[db(rename = "del_geo")]
     #[sqlx(rename = "del_geo")]
     pub geo: Option<String>,
@@ -114,6 +117,15 @@ pub struct Deal {
     #[sqlx(rename = "del_contact_email")]
     pub contact_email: Option<String>,
 
+    /// Until when the lot stays held for the buyer.
+    #[db(rename = "del_reserved_until")]
+    #[sqlx(rename = "del_reserved_until")]
+    pub reserved_until: Option<Timestamp>,
+    /// How many times the seller backed out after their lot was taken.
+    #[db(rename = "del_declines")]
+    #[sqlx(rename = "del_declines")]
+    pub declines: i16,
+
     pub del_is_enable: bool,
 
     /// Created at (DB default). Used for “listed for” age on the market board.
@@ -134,31 +146,39 @@ pub struct DealListFilter {
     pub asset_type: Option<String>,
 }
 
-/// Срок действия листинга по умолчанию — дней от публикации.
+/// Default listing lifetime, in days from publication.
 pub const DEFAULT_LISTING_DAYS: i64 = 31;
 
-/// Региональные интернет-реестры.
+/// How long a lot stays held for the buyer after they take it.
 ///
-/// Автоматическая проверка факта перехода сейчас работает только для
-/// **RIPE** — только у него публикуются машиночитаемые таблицы трансферов
-/// в нужном виде. Остальные реестры принимаются в листинг, но выпуск денег
-/// по ним потребует ручного подтверждения.
+/// Within this window the seller must confirm the deal. If they do not, the
+/// lot returns to the board and somebody else can take it. The point of the
+/// deadline is that a taken lot should not hang there dead while the seller
+/// stays silent.
+pub const RESERVE_HOURS: i64 = 6;
+
+/// Regional internet registries.
+///
+/// Automatic confirmation of a transfer currently works for **RIPE** only —
+/// it is the one registry publishing machine-readable transfer tables in a
+/// usable form. Listings from the others are accepted, but releasing money
+/// against them takes manual confirmation.
 pub const RIRS: &[&str] = &["RIPE", "ARIN", "APNIC", "LACNIC", "AFRINIC"];
 
-/// Реестр, для которого работает автопроверка фактов.
+/// The registry for which automatic fact checking works.
 pub const RIR_WITH_ORACLE: &str = "RIPE";
 
-/// Префикс без самого адреса сети — то, что видно до оплаты.
+/// The prefix with the network address hidden — what is visible before funding.
 ///
-/// Точная сеть это и есть предмет сделки: зная её, покупатель может
-/// проверить блок и уйти к владельцу мимо площадки. Поэтому наружу отдаём
-/// только размер, а адрес открывается тому, кто внёс деньги.
+/// The exact network *is* the subject of the deal: knowing it, a buyer can
+/// look the block up and go straight to the holder, around the platform. So
+/// outsiders get the size only; the address opens to whoever funded.
 ///
-/// # Параметры
-/// * `prefix` — сеть в виде `194.246.124.0/23`
+/// # Parameters
+/// * `prefix` — the network as `194.246.124.0/23`
 ///
-/// # Возвращает
-/// * `String` — например `•••.•••.•••.• /23`
+/// # Returns
+/// * `String` — for example `•••.•••.•••.• /23`
 pub fn masked_prefix(prefix: &str) -> String {
     match prefix.rsplit_once('/') {
         Some((_, bits)) => format!("•••.•••.•••.•/{}", bits.trim()),
@@ -166,16 +186,16 @@ pub fn masked_prefix(prefix: &str) -> String {
     }
 }
 
-/// Сколько адресов в блоке по его записи CIDR.
+/// How many addresses a block holds, from its CIDR notation.
 ///
-/// Покупатель смотрит на количество адресов, а не на длину префикса:
-/// `/22` ему ни о чём не говорит, `1024 addresses` — говорит.
+/// Buyers think in address counts, not prefix lengths: `/22` tells them
+/// nothing, `1024 addresses` tells them everything.
 ///
-/// # Параметры
-/// * `prefix` — сеть в виде `194.246.124.0/23` либо без маски
+/// # Parameters
+/// * `prefix` — the network as `194.246.124.0/23`, or without a mask
 ///
-/// # Возвращает
-/// * `Some(число)` — адресов в блоке · `None` — маска не распознана
+/// # Returns
+/// * `Some(count)` — addresses in the block · `None` — mask not recognised
 pub fn address_count(prefix: &str) -> Option<u64> {
     let bits: u32 = prefix.rsplit_once('/')?.1.trim().parse().ok()?;
     if bits > 32 {
@@ -184,16 +204,16 @@ pub fn address_count(prefix: &str) -> Option<u64> {
     Some(1u64 << (32 - bits))
 }
 
-/// Публичный номер лота `ddd-ddd` — производная от `del_hash`.
+/// Public lot number `ddd-ddd`, derived from `del_hash`.
 ///
-/// Наружу (URL, таблица, карточка) уходят только хэш и этот номер;
-/// `del_id` не показывается нигде.
+/// Only the hash and this number ever leave the system — in URLs, tables and
+/// cards. `del_id` is shown nowhere.
 ///
-/// # Параметры
-/// * `del_hash` — hex-хэш сделки
+/// # Parameters
+/// * `del_hash` — the deal's hex hash
 ///
-/// # Возвращает
-/// * `String` — номер вида `472-118`
+/// # Returns
+/// * `String` — a number like `472-118`
 pub fn public_no(del_hash: &str) -> String {
     let head = del_hash.get(..6).unwrap_or("000000");
     let n = u32::from_str_radix(head, 16).unwrap_or(0) % 1_000_000;
@@ -201,21 +221,21 @@ pub fn public_no(del_hash: &str) -> String {
 }
 
 impl Deal {
-    /// Публичный номер лота — см. [`public_no`].
+    /// Public lot number — see [`public_no`].
     pub fn public_no(&self) -> String {
         public_no(&self.del_hash)
     }
 
-    /// Кому можно показать точную сеть.
+    /// Who may be shown the exact network.
     ///
-    /// Видят только создатель листинга и покупатель, внёсший деньги.
-    /// Всем остальным — маска: сеть открывается за депозит, а не за просмотр.
+    /// Only the person who listed it and the buyer who funded it. Everyone
+    /// else sees the mask: the network opens for a deposit, not for a glance.
     ///
-    /// # Параметры
-    /// * `actor` — текущий пользователь, если вошёл
+    /// # Parameters
+    /// * `actor` — the current user, when signed in
     ///
-    /// # Возвращает
-    /// * `true` — можно показать `prefix` целиком
+    /// # Returns
+    /// * `true` — the full `prefix` may be shown
     pub fn may_see_prefix(&self, actor: Option<i64>) -> bool {
         if actor.is_none() {
             return false;
@@ -228,7 +248,7 @@ impl Deal {
         actor == creator || (actor == self.buyer_usr_id && self.is_paid())
     }
 
-    /// Деньги за сделку уже в замке (или дальше по пути).
+    /// The money is already in the lock (or further along).
     pub fn is_paid(&self) -> bool {
         matches!(
             self.del_status.as_str(),
@@ -241,17 +261,26 @@ impl Deal {
         )
     }
 
-    /// Срок действия истёк (для листингов на доске).
+    /// The buyer's hold has expired — time to put the lot back on the board.
+    pub fn reserve_expired(&self) -> bool {
+        self.del_status == status::RESERVED
+            && self
+                .reserved_until
+                .map(|t| t.raw() <= Timestamp::now().raw())
+                .unwrap_or(true)
+    }
+
+    /// The listing has expired (for lots on the board).
     pub fn is_expired(&self) -> bool {
         self.deadline_ts
             .map(|d| d.raw() <= Timestamp::now().raw())
             .unwrap_or(false)
     }
 
-    /// Проставляет срок действия по умолчанию, если создатель его не задал.
+    /// Sets the default expiry when the lister did not choose one.
     ///
-    /// Вызывается при выходе лота на доску (`list` / `publish`), чтобы на
-    /// рынке не висели бессрочные предложения.
+    /// Called as the lot reaches the board (`list` / `publish`), so that no
+    /// listing hangs on the market forever.
     fn ensure_deadline(&mut self) {
         if self.deadline_ts.is_none() {
             let secs = DEFAULT_LISTING_DAYS * 86_400;
@@ -259,15 +288,15 @@ impl Deal {
         }
     }
 
-    /// Присваивает постоянный хэш сделки — идемпотентно.
+    /// Assigns the deal's permanent hash — idempotently.
     ///
-    /// Хэш это публичный идентификатор: по нему строится адрес
-    /// `/deals/<hash>/` и номер лота. Считается ОДИН раз при создании и
-    /// дальше не меняется — иначе ссылка протухала бы при каждой смене
-    /// сторон (появился `buyer_wallet` — новый хэш — 404 по старому адресу).
+    /// The hash is the public identifier: the `/deals/<hash>/` URL and the lot
+    /// number are built from it. It is computed ONCE at creation and never
+    /// again — otherwise the link would rot every time a party changed (a
+    /// `buyer_wallet` appears → new hash → 404 on the old address).
     ///
-    /// Вызывается в ws-хендлере до отправки в database (чтобы знать, куда
-    /// редиректить) и в [`Deal::save`] как страховка для остальных путей.
+    /// Called in the ws handler before going to the database (so we know where
+    /// to redirect) and in [`Deal::save`] as a backstop for every other path.
     pub fn assign_hash(&mut self) {
         if !self.del_hash.is_empty() {
             return;
@@ -360,6 +389,52 @@ impl Deal {
                 self.ensure_deadline();
                 self.del_status = LISTED.into();
             }
+            // The buyer takes the lot: it leaves the board and is held for
+            // them for a set time. Nobody else can take it meanwhile — the
+            // queue is settled by whoever got there first.
+            "take" => {
+                if self.del_status != LISTED {
+                    return Err("this lot is not available".into());
+                }
+                if self.is_expired() {
+                    return Err("listing has expired".into());
+                }
+                self.buyer_usr_id = actor_usr_id;
+                self.buyer_wallet = buyer_wallet;
+                self.reserved_until =
+                    Some(Timestamp(Timestamp::now().raw() + RESERVE_HOURS * 3600));
+                self.del_status = RESERVED.into();
+            }
+            // The seller confirms — the buyer may now pay.
+            "confirm_deal" => {
+                if self.del_status != RESERVED {
+                    return Err("nothing to confirm".into());
+                }
+                self.del_status = ACCEPTED.into();
+            }
+            // The seller backed out. The lot returns to the board and the
+            // refusal is counted: somebody who routinely backs out after a
+            // hold wastes buyers' time, and that should be visible.
+            "decline_deal" => {
+                if self.del_status != RESERVED {
+                    return Err("nothing to decline".into());
+                }
+                self.declines = self.declines.saturating_add(1);
+                self.buyer_usr_id = None;
+                self.buyer_wallet = None;
+                self.reserved_until = None;
+                self.del_status = LISTED.into();
+            }
+            // The hold expired — the lot returns to the board, no mark against the seller.
+            "release_reserve" => {
+                if self.del_status != RESERVED {
+                    return Err("lot is not reserved".into());
+                }
+                self.buyer_usr_id = None;
+                self.buyer_wallet = None;
+                self.reserved_until = None;
+                self.del_status = LISTED.into();
+            }
             "request" => {
                 // Offer board: buyer wants to buy. Request board: seller responds to demand.
                 if self.del_status != LISTED {
@@ -417,8 +492,8 @@ impl Deal {
                 }
                 self.del_status = AWAITING_PROOF.into();
             }
-            // Отправка на модерацию: сам по себе лот на доску не попадает.
-            // Оператор смотрит заявку и решает — approve/decline из Telegram.
+            // Submitted for review: a lot never reaches the board by itself.
+            // An operator looks at it and decides — approve or decline, from Telegram.
             "publish" => {
                 if !matches!(self.del_status.as_str(), DRAFT | VERIFIED | REJECTED) {
                     return Err("publish only from draft/verified".into());
@@ -427,7 +502,7 @@ impl Deal {
                 self.ensure_deadline();
                 self.del_status = MODERATION.into();
             }
-            // Решение оператора.
+            // The operator's decision.
             "approve" => {
                 if self.del_status != MODERATION {
                     return Err("approve only from moderation".into());
@@ -451,10 +526,7 @@ impl Deal {
                 self.del_status = DISPUTE.into();
             }
             "cancel" => {
-                if matches!(
-                    self.del_status.as_str(),
-                    RELEASED | REFUNDED | CANCELLED
-                ) {
+                if matches!(self.del_status.as_str(), RELEASED | REFUNDED | CANCELLED) {
                     return Err("already terminal".into());
                 }
                 if matches!(self.del_status.as_str(), AWAITING_PROOF | FUNDED) {

@@ -42,9 +42,9 @@ function bindListingForm(form) {
     }
 }
 
-// Core date-picker.js инициализирует flatpickr с русской локалью (общий канон
-// forge). Продукт EN-only — переинициализируем поле даты на английскую.
-// Формат Y-m-d остаётся тем же: сервер парсит YYYY-MM-DD.
+// The platform's date-picker.js initialises flatpickr with a Russian locale.
+// This product is English only, so the date field is re-initialised in English.
+// The Y-m-d format is unchanged: the server parses YYYY-MM-DD.
 function englishDatePickers(root) {
     if (typeof window.flatpickr === 'undefined') return;
     root.querySelectorAll('input[data-flatpickr]').forEach(el => {

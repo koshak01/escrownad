@@ -385,7 +385,7 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 12px 10px;
-  /* формы занимают всю ширину экрана — не колонка на пол-окна */
+  /* forms take the full width of the screen — not a half-window column */
   max-width: none;
   width: 100%;
   box-sizing: border-box;
@@ -549,7 +549,7 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   gap: 0 22px;
   align-items: start;
 }
-/* заголовки секций, IP-блок, широкие контролы и кнопки — во всю ширину */
+/* section headings, the IP block, wide controls and buttons — full width */
 .listing-rest > .app-form__section,
 .listing-rest > .app-form__section-hint,
 .listing-rest > .listing-ip,
@@ -559,7 +559,7 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
 .listing-ip > .app-form__section-hint {
   grid-column: 1 / -1;
 }
-/* верхние шаги (side/type) тоже на всю ширину — они над сеткой */
+/* the top steps (side/type) are full width too — they sit above the grid */
 .app-form--listing > form > .app-ctl {
   max-width: none;
 }
@@ -694,7 +694,7 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   margin: 0;
 }
 
-/* плитки со значениями */
+/* value tiles */
 .deal-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -793,7 +793,7 @@ td.deal-no {
   font-size: 12px;
   font-weight: 600;
 }
-/* размеченный текст из редактора */
+/* marked-up text from the editor */
 .rich > :first-child { margin-top: 0; }
 .rich > :last-child { margin-bottom: 0; }
 .rich p { margin: 0 0 0.5em; line-height: 1.5; }

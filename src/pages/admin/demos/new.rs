@@ -1,5 +1,6 @@
-//! Создание demo — `/admin/demos/new/`. Шаблон общий с edit: кладём пустой
-//! `Demo` (`dmo_id = 0`, `dmo_is_enable = true`) — форма отрендерит новую запись.
+//! Creating a demo — `/admin/demos/new/`. The template is shared with edit: we
+//! supply an empty `Demo` (`dmo_id = 0`, `dmo_is_enable = true`) and the form
+//! renders it as a new record.
 
 use async_trait::async_trait;
 use forge_ws::{AuthRequirement, Page, RequestContext, WsResult};
