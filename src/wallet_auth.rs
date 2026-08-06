@@ -52,6 +52,14 @@ pub struct WalletLoginResp {
     pub redirect: String,
     pub address: String,
     pub is_new: bool,
+    /// Does this wallet hold a valid verified identity?
+    ///
+    /// `None` — we could not ask. The interface then stays quiet rather than
+    /// alarming anyone: the real refusal stands in the contract regardless,
+    /// and that one cannot be bypassed.
+    pub verified: Option<bool>,
+    /// Where to go for an identity, when there is none.
+    pub verify_url: Option<String>,
 }
 
 // ── Pending challenges ───────────────────────────────────────────────────────
@@ -153,27 +161,26 @@ fn eth_signed_message_hash(message: &str) -> [u8; 32] {
     keccak256(&buf)
 }
 
-/// Восстанавливает адрес из подписи `personal_sign`.
+/// Recovers the address from a `personal_sign` signature.
 pub fn recover_address(message: &str, signature_hex: &str) -> Result<String, String> {
     Ok(recover_address_and_pubkey(message, signature_hex)?.0)
 }
 
-/// Восстанавливает из подписи и адрес, и **публичный ключ**.
+/// Recovers both the address and the **public key** from a signature.
 ///
-/// Публичный ключ — это то, чем можно зашифровать данные лично для этого
-/// человека: расшифровать сможет только владелец приватного ключа, то есть
-/// сам кошелёк. Из адреса его получить нельзя (адрес — односторонний хэш),
-/// зато из любой подписи — можно, что мы и делаем при входе. Никаких
-/// дополнительных действий от пользователя не требуется: подпись он и так
-/// даёт, чтобы войти.
+/// The public key is what data can be encrypted with for this person alone:
+/// only the holder of the private key — the wallet itself — can decrypt it.
+/// It cannot be derived from the address, which is a one-way hash, but it can
+/// be recovered from any signature, which is what we do at sign-in. Nothing
+/// extra is asked of the user: they sign to get in anyway.
 ///
-/// # Параметры
-/// * `message` — подписанное сообщение
-/// * `signature_hex` — подпись `r||s||v` в hex
+/// # Parameters
+/// * `message` — the signed message
+/// * `signature_hex` — the `r||s||v` signature in hex
 ///
-/// # Возвращает
-/// * `Ok((адрес, публичный ключ))` — ключ в сжатом виде, 33 байта hex
-/// * `Err(_)` — подпись не разобралась или не соответствует сообщению
+/// # Returns
+/// * `Ok((address, public key))` — the key compressed, 33 bytes as hex
+/// * `Err(_)` — the signature did not parse, or does not match the message
 pub fn recover_address_and_pubkey(
     message: &str,
     signature_hex: &str,
@@ -186,8 +193,7 @@ pub fn recover_address_and_pubkey(
     if v > 1 {
         return Err("invalid signature v".into());
     }
-    let recovery_id =
-        RecoveryId::try_from(v).map_err(|_| "invalid recovery id".to_string())?;
+    let recovery_id = RecoveryId::try_from(v).map_err(|_| "invalid recovery id".to_string())?;
     let sig = K256Signature::from_slice(&sig_raw[..64])
         .map_err(|_| "invalid signature r||s".to_string())?;
 
@@ -202,7 +208,7 @@ pub fn recover_address_and_pubkey(
     }
     let hash = keccak256(&uncompressed[1..]);
     let addr = &hash[12..];
-    // сжатый вид (0x02/0x03 || x) — компактнее и его ждут библиотеки шифрования
+    // compressed form (0x02/0x03 || x) — smaller, and what crypto libraries expect
     let compressed = vk.to_encoded_point(true);
     Ok((
         format!("0x{}", hex::encode(addr)),
@@ -288,13 +294,40 @@ pub async fn wallet_login<C: WsConnAuth>(
 
     let redirect = sanitize_redirect(params.redirect_after.as_deref());
 
-    info!(usr_id = user.usr_id, %address, is_new = user.is_new, "wallet signed in");
+    // We ask about the identity but do not gate sign-in on it: a person should
+    // get inside and see the requirement, rather than hit a blank wall. The
+    // refusal happens where the money is — in the contract.
+    let verified = check_identity(&address).await;
+
+    info!(usr_id = user.usr_id, %address, is_new = user.is_new, ?verified, "wallet signed in");
     Ok(WalletLoginResp {
         ok: true,
         redirect,
         address,
         is_new: user.is_new,
+        verified,
+        verify_url: match verified {
+            Some(true) => None,
+            _ => Some(crate::cleanverse::core::MAGIC_LINK.to_string()),
+        },
     })
+}
+
+/// Does this wallet hold a valid verified identity?
+///
+/// # Parameters
+/// * `address` — wallet address
+///
+/// # Returns
+/// * `Some(true)` / `Some(false)` — the identity is valid, or it is not
+/// * `None` — the integration is not configured, or we could not ask
+async fn check_identity(address: &str) -> Option<bool> {
+    let constants = crate::app_context().db.get_constants().await.ok()?;
+    let config: crate::cleanverse::types::CleanverseConfig = constants
+        .get(crate::cleanverse::types::CLEANVERSE_CONSTANT)
+        .ok()??;
+    let now = chrono::Utc::now().timestamp();
+    crate::cleanverse::core::is_verified(&config, address, now).await
 }
 
 /// Only same-origin relative paths (block open redirect //evil.com, https://…).

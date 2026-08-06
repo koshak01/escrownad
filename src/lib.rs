@@ -1,25 +1,26 @@
-//! escrownad — эталонный каркас приложения на forge.
+//! escrownad — the application skeleton on the forge platform.
 //!
-//! 4 бинарника (`database` / `notifier` / `ws` / `web`) делят:
-//!   - пути к unix-сокетам — `sockets::*`
-//!   - типы команд к database — `DbCommand` / `DbResponse`
-//!   - общий ws-контекст — `AppContext` через `init_app_context()`/`app_context()`
+//! Four binaries (`database` / `notifier` / `ws` / `web`) share:
+//!   - unix socket paths — `sockets::*`
+//!   - the database command types — `DbCommand` / `DbResponse`
+//!   - a common ws context — `AppContext`, via `init_app_context()`/`app_context()`
 //!
-//! Системные SQL (ping, now_epoch, constants) и PG-подключение живут в ядре
-//! (`forge_db::pg`, `forge_db::system`). Ядерные admin-страницы — в `forge-admin`.
-//! Telegram-очередь и шаблоны — в `forge-notifier`.
+//! System SQL (ping, now_epoch, constants) and the Postgres connection live in
+//! the platform (`forge_db::pg`, `forge_db::system`). Platform admin pages are
+//! in `forge-admin`; the Telegram queue and its templates in `forge-notifier`.
 //!
-//! Здесь — только базовый каркас, минимально необходимый чтобы стек поднялся
-//! end-to-end. Доменные модели / команды / страницы добавляются проектом
-//! поверх этого минимума.
+//! This file holds only the skeleton needed to bring the stack up end to end.
+//! Domain models, commands and pages are added by the project on top of that
+//! minimum.
 
 pub mod chain;
+pub mod cleanverse;
 pub mod models;
 pub mod moderation;
-pub mod tg_hook;
 pub mod observer;
 pub mod pages;
 pub mod sanitize;
+pub mod tg_hook;
 pub mod wallet_auth;
 pub mod ws_handlers;
 
@@ -32,11 +33,11 @@ use tokio::sync::RwLock;
 
 pub const APP_NAME: &str = "escrownad";
 
-/// Внутренние IPC-сокеты между бинарями (database/notifier/ws/web).
-/// Имя через `.` — конвенция forge для внутреннего IPC.
-/// Внешние listener'ы (nginx → бинарь) идут через `_`:
-/// `/tmp/escrownad_ws.sock`, `/tmp/escrownad_web.sock` — настраиваются в etc/ws.toml
-/// и etc/web.toml, не здесь.
+/// Internal IPC sockets between the binaries (database/notifier/ws/web).
+/// A `.` in the name is the platform convention for internal IPC. External
+/// listeners (nginx → binary) use `_`: `/tmp/escrownad_ws.sock` and
+/// `/tmp/escrownad_web.sock`, configured in etc/ws.toml and etc/web.toml,
+/// not here.
 pub mod sockets {
     pub const DATABASE: &str = "/tmp/escrownad.database.sock";
     pub const NOTIFIER: &str = "/tmp/escrownad.notifier.sock";
@@ -45,11 +46,11 @@ pub mod sockets {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// AppContext — общий контекст ws-демона
+// AppContext — the shared context of the ws daemon
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// Контейнер для всего что нужно ws-handler'ам: клиент к database,
-/// Redis-сессии, Tera renderer, клиент к notifier'у.
+/// Everything a ws handler needs: the database client, Redis sessions, the
+/// Tera renderer and the notifier client.
 pub struct AppContext {
     pub db: Arc<DbClient>,
     pub redis: RedisClient,
@@ -69,11 +70,11 @@ pub fn init_app_context(ctx: AppContext) {
 pub fn app_context() -> &'static AppContext {
     APP_CONTEXT
         .get()
-        .expect("AppContext not initialized — вызови init_app_context() при старте ws")
+        .expect("AppContext not initialized — call init_app_context() when ws starts")
 }
 
-/// Registry страниц: проектные сначала (могут перекрывать `/admin/` если
-/// захотят свою заглушку), потом ядерные admin-страницы.
+/// Page registry: the project's own pages first — they may override `/admin/`
+/// with a stub of their own — then the platform admin pages.
 pub fn pages() -> Vec<Box<dyn Page>> {
     let mut out: Vec<Box<dyn Page>> = vec![
         Box::new(pages::IndexPage),
@@ -83,9 +84,9 @@ pub fn pages() -> Vec<Box<dyn Page>> {
         Box::new(pages::DealNewPage),
         Box::new(pages::DealShowPage),
         Box::new(pages::OraclePage),
-        // ЭТАЛОН: доменные admin-страницы проекта (demo-сущность).
-        // Порядок list → new → edit: `/admin/demos/new/` обязан идти ДО
-        // `/admin/demos/{id}/`, иначе `new` попадёт в `{id}` (см. page.rs::matches).
+        // Reference: the project's own admin pages (the demo entity).
+        // Order list → new → edit: `/admin/demos/new/` MUST come before
+        // `/admin/demos/{id}/`, or `new` would be captured as an `{id}`.
         Box::new(pages::admin::demos::list::ListPage),
         Box::new(pages::admin::demos::new::NewPage),
         Box::new(pages::admin::demos::edit::EditPage),
@@ -95,12 +96,12 @@ pub fn pages() -> Vec<Box<dyn Page>> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// IPC: команды ws/web/notifier → database
+// IPC: commands from ws/web/notifier to database
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// Минимальный набор команд к database. Системные (Ping/GetSalt/...) и
-/// ядерные admin-CRUD — всё что нужно для запуска. Проектные команды
-/// добавляются поверх (новые варианты enum + ветки в `database.rs`).
+/// The minimal command set for the database: system commands (Ping/GetSalt/…)
+/// and platform admin CRUD — everything needed to start. Project commands are
+/// added on top: new enum variants plus branches in `database.rs`.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum DbCommand {
@@ -115,32 +116,33 @@ pub enum DbCommand {
         code: Option<String>,
     },
 
-    /// Все ядерные admin-CRUD команды — в одном wrapper'е.
-    /// Расширяется автоматически при добавлении вариантов в forge-admin.
-    /// Login (find user by email) тоже через admin — см.
+    /// Every platform admin CRUD command inside one wrapper.
+    /// It grows automatically as variants are added to forge-admin.
+    /// Login (find user by email) also goes through admin — see
     /// `AdminDbCommand::GetUserByEmail` + `forge_admin::ws_auth::login`.
     Admin {
         cmd: AdminDbCommand,
     },
 
-    // ── ЭТАЛОН доменных команд (demo-сущность `demos`) ──────────────────────
-    // Так проект добавляет CRUD своей таблицы: варианты в СВОЙ `DbCommand`
-    // (не в `AdminDbCommand`), обработка — в `bin/database.rs` (см. `match`).
-    // Структура путешествует целиком (`03_handlers.md`): `data: Demo`, не россыпь.
-    /// Список demo с фильтром + сортировкой (structure-driven, ADR-0010).
+    // ── Reference domain commands (the `demos` entity) ──────────────────────
+    // This is how a project adds CRUD for its own table: variants go into ITS
+    // OWN `DbCommand`, not into `AdminDbCommand`, and are handled in
+    // `bin/database.rs`. The whole struct travels as one: `data: Demo`, never
+    // a scatter of fields.
+    /// Demo list with a filter and sorting (structure-driven, ADR-0010).
     ListDemosFiltered {
         filter: models::DemoListFilter,
         sort: Option<forge_admin::handlers::SortSpec>,
     },
-    /// Одна запись по id — для формы редактирования.
+    /// A single record by id — for the edit form.
     GetDemo {
         id: i64,
     },
-    /// Upsert: `dmo_id == 0` → insert, иначе update.
+    /// Upsert: `dmo_id == 0` inserts, anything else updates.
     SaveDemo {
         data: models::Demo,
     },
-    /// Удаление по id.
+    /// Delete by id.
     DeleteDemo {
         id: i64,
     },
@@ -158,11 +160,11 @@ pub enum DbCommand {
     GetDeal {
         id: i64,
     },
-    /// Публичный доступ к сделке — по постоянному хэшу, не по id.
+    /// Public access to a deal — by its permanent hash, never by id.
     GetDealByHash {
         hash: String,
     },
-    /// Поиск по началу хэша: в кнопку Telegram полный хэш не влезает.
+    /// Lookup by hash prefix: a full hash does not fit in a Telegram button.
     GetDealByHashPrefix {
         prefix: String,
     },
@@ -171,8 +173,8 @@ pub enum DbCommand {
     },
 
     /// Find or create forge user for lowercase 0x EVM address (wallet login).
-    /// `pubkey` — публичный ключ из подписи входа; пустая строка, если не
-    /// удалось восстановить (тогда прежнее значение в базе не затирается).
+    /// `pubkey` — the public key recovered from the sign-in signature; empty
+    /// when recovery failed, in which case the stored value is left alone.
     WalletFindOrCreate {
         address: String,
         pubkey: String,
@@ -183,10 +185,11 @@ pub enum DbCommand {
     ListVerifiedSellers,
 }
 
-// large_enum_variant: `Admin` несёт весь AdminDbResponse (большой по дизайну) —
-// как и `DbCommand::Admin`. Это IPC-wrapper, который сразу сериализуется в
-// msgpack и дропается; боксить ради memory-layout смысла нет (+ heap-alloc на
-// каждый ответ). Решение симметрично `DbCommand` выше — allow, не Box.
+// large_enum_variant: `Admin` carries the whole AdminDbResponse, which is
+// large by design — same as `DbCommand::Admin`. This is an IPC wrapper that is
+// serialised to msgpack and dropped immediately; boxing it for memory layout
+// buys nothing and costs a heap allocation per reply. Symmetric with
+// `DbCommand` above — allow rather than Box.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum DbResponse {
@@ -194,7 +197,7 @@ pub enum DbResponse {
     Salt(i64),
     Constants(Constants),
     Admin(AdminDbResponse),
-    // ── ответы demo-сущности (эталон) ──────────────────────────────────────
+    // ── replies of the demo entity (reference) ─────────────────────────────
     Demos(Vec<models::Demo>),
     Demo(Option<models::Demo>),
     // deals
@@ -207,7 +210,7 @@ pub enum DbResponse {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Constants — снимок ядерных констант, кешируется в database
+// Constants — a snapshot of the platform constants, cached in database
 // ──────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -235,7 +238,10 @@ impl Constants {
     pub fn raw(&self, key: &str) -> Option<&[u8]> {
         self.0.get(key).map(|v| v.as_slice())
     }
-    pub fn get<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>, serde_json::Error> {
+    pub fn get<T: serde::de::DeserializeOwned>(
+        &self,
+        key: &str,
+    ) -> Result<Option<T>, serde_json::Error> {
         match self.0.get(key) {
             Some(bytes) => Ok(Some(serde_json::from_slice(bytes)?)),
             None => Ok(None),
@@ -244,11 +250,11 @@ impl Constants {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Typed клиенты
+// Typed clients
 // ──────────────────────────────────────────────────────────────────────────────
 
 forge_ipc::client! {
-    /// Клиент к escrownad-database. Единственный путь к Postgres-данным.
+    /// Client to escrownad-database. The only route to Postgres data.
     pub DbClient(DbCommand, DbResponse, sockets::DATABASE) {
         pub fn ping() = Ping -> Pong;
         pub fn get_salt() -> i64 = GetSalt -> Salt(v) = v;
@@ -258,13 +264,14 @@ forge_ipc::client! {
         pub fn reload_constant(code: Option<String>)
             = ReloadConstant { code } -> Ok;
 
-        /// Один wrapper-метод на ВСЕ admin-CRUD команды forge-admin.
-        /// Расширяется автоматически — приложение не правит.
+        /// One wrapper method for EVERY forge-admin CRUD command.
+        /// It grows automatically; the application never edits it.
         pub fn admin(cmd: AdminDbCommand) -> AdminDbResponse
             = Admin { cmd } -> Admin(resp) = resp;
 
-        // ── ЭТАЛОН: доменные методы demo-сущности ──────────────────────────
-        // По ним Page/ws-handler ходят в БД: `app_context().db.list_demos_filtered(...)`.
+        // ── Reference: domain methods of the demo entity ───────────────────
+        // Pages and ws handlers reach the database through these:
+        // `app_context().db.list_demos_filtered(...)`.
         pub fn list_demos_filtered(filter: models::DemoListFilter, sort: Option<forge_admin::handlers::SortSpec>)
             -> Vec<models::Demo>
             = ListDemosFiltered { filter, sort } -> Demos(v) = v;
@@ -305,8 +312,8 @@ impl forge_admin::AdminCommandSender for DbClient {
     }
 }
 
-/// `ConstantsSink` для `forge_admin::hooks::DefaultAdminHooks` —
-/// делегирует в client!-сгенерированные методы DbClient.
+/// `ConstantsSink` for `forge_admin::hooks::DefaultAdminHooks` — delegates to
+/// the DbClient methods generated by the `client!` macro.
 #[async_trait::async_trait]
 impl forge_admin::hooks::ConstantsSink for DbClient {
     async fn reload_constant(&self, code: Option<String>) -> Result<(), String> {
@@ -330,7 +337,7 @@ impl forge_admin::hooks::ConstantsSink for DbClient {
 }
 
 impl DbClient {
-    /// Блокирующее ожидание готовности database (для bootstrap зависимых демонов).
+    /// Blocks until database is ready — used when bootstrapping dependent daemons.
     pub async fn wait_ready(&self, timeout: std::time::Duration) -> forge_ipc::IpcResult<()> {
         let deadline = std::time::Instant::now() + timeout;
         loop {
@@ -346,7 +353,7 @@ impl DbClient {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// WsClient — клиент к escrownad-ws для web-бинарника (IPC render).
+// WsClient — the web binary's client to escrownad-ws (IPC render).
 // ──────────────────────────────────────────────────────────────────────────────
 
 pub struct WsClient {
@@ -369,26 +376,26 @@ impl WsClient {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// NotifierClient — клиент IPC от ws/web в notifier.
-// Использует протокол из forge_notifier (NotifierCommand/Response).
+// NotifierClient — the IPC client from ws/web into notifier.
+// Speaks the forge_notifier protocol (NotifierCommand/Response).
 // ──────────────────────────────────────────────────────────────────────────────
 
 forge_ipc::client! {
-    /// Клиент к escrownad-notifier для постановки сообщений в очередь.
+    /// Client to escrownad-notifier for queueing messages.
     pub NotifierClient(forge_notifier::NotifierCommand, forge_notifier::NotifierResponse, sockets::NOTIFIER) {
         pub fn ping() = Ping -> Pong;
     }
 }
 
 impl NotifierClient {
-    /// Ответить Telegram на нажатие кнопки — гасит спиннер у оператора.
+    /// Answer a Telegram button press — stops the operator's spinner.
     ///
-    /// Идёт в обход очереди: Telegram ждёт ответ 15 секунд.
+    /// Bypasses the queue: Telegram waits 15 seconds for an answer.
     ///
-    /// # Параметры
-    /// * `callback_query_id` — идентификатор нажатия из вебхука
-    /// * `text` — короткое уведомление над кнопкой
-    /// * `show_alert` — `true` — модалка вместо всплывающей подсказки
+    /// # Parameters
+    /// * `callback_query_id` — the press identifier from the webhook
+    /// * `text` — a short notice above the button
+    /// * `show_alert` — `true` shows a dialog instead of a toast
     pub async fn answer_callback(
         &self,
         callback_query_id: String,
@@ -405,18 +412,21 @@ impl NotifierClient {
             .await?
         {
             forge_notifier::NotifierResponse::Queued => Ok(()),
-            other => Err(forge_ipc::IpcError::Server(format!("unexpected: {other:?}"))),
+            other => Err(forge_ipc::IpcError::Server(format!(
+                "unexpected: {other:?}"
+            ))),
         }
     }
 
-    /// Поставить сообщение в очередь по шаблону `tpl_code`. `params` —
-    /// контекст для Tera-рендера, обычно `serde_json!({...})`.
+    /// Queue a message rendered from template `tpl_code`. `params` is the
+    /// context for the Tera render, usually a `serde_json!({...})`.
     pub async fn send<P: serde::Serialize>(
         &self,
         tpl_code: impl Into<String>,
         params: &P,
     ) -> forge_ipc::IpcResult<()> {
-        let bytes = serde_json::to_vec(params).map_err(|e| forge_ipc::IpcError::Encode(e.to_string()))?;
+        let bytes =
+            serde_json::to_vec(params).map_err(|e| forge_ipc::IpcError::Encode(e.to_string()))?;
         match self
             .inner
             .execute(forge_notifier::NotifierCommand::Send {
@@ -427,13 +437,15 @@ impl NotifierClient {
             .await?
         {
             forge_notifier::NotifierResponse::Queued => Ok(()),
-            other => Err(forge_ipc::IpcError::Server(format!("unexpected: {other:?}"))),
+            other => Err(forge_ipc::IpcError::Server(format!(
+                "unexpected: {other:?}"
+            ))),
         }
     }
 }
 
-/// Реализация `forge_notifier::NotifierDb` для `DbClient`. Notifier работает
-/// с любым приложением через этот trait, не зная про конкретный DbCommand.
+/// `forge_notifier::NotifierDb` implemented for `DbClient`. The notifier works
+/// with any application through this trait, knowing nothing of its DbCommand.
 #[async_trait::async_trait]
 impl forge_notifier::NotifierDb for DbClient {
     async fn wait_ready(&self, timeout: std::time::Duration) -> anyhow::Result<()> {
@@ -447,7 +459,9 @@ impl forge_notifier::NotifierDb for DbClient {
         Ok(constants.raw(key).map(|b| b.to_vec()))
     }
 
-    async fn list_templates_with_channel(&self) -> anyhow::Result<Vec<forge_admin::TemplateWithChannel>> {
+    async fn list_templates_with_channel(
+        &self,
+    ) -> anyhow::Result<Vec<forge_admin::TemplateWithChannel>> {
         match self.admin(AdminDbCommand::ListTemplatesWithChannel).await? {
             AdminDbResponse::TemplatesWithChannel(v) => Ok(v),
             other => Err(anyhow::anyhow!("unexpected: {other:?}")),
@@ -462,9 +476,10 @@ impl forge_notifier::NotifierDb for DbClient {
     }
 }
 
-/// `ErrorReporter` для `forge_admin::hooks::register_error_hooks` —
-/// шлёт ошибки в шаблон `error` (канал `errors` по проектной конфигурации).
-/// Errors без шаблона в БД молча игнорируются (см. forge-notifier
+/// `ErrorReporter` for `forge_admin::hooks::register_error_hooks` — sends
+/// errors through the `error` template (the `errors` channel per project
+/// configuration). Errors with no template in the database are silently
+/// ignored (see forge-notifier
 /// safe-fallback).
 #[async_trait::async_trait]
 impl forge_admin::hooks::ErrorReporter for NotifierClient {
@@ -476,12 +491,17 @@ impl forge_admin::hooks::ErrorReporter for NotifierClient {
     }
 }
 
-/// `ChannelSender` для `forge_admin::hooks::set_channel_sender` — «сырая»
-/// отправка текста в канал по `tlg_code` (кнопка «Проверить» в admin-шаблонах):
-/// шлёт тело шаблона как есть, без Tera-рендера.
+/// `ChannelSender` for `forge_admin::hooks::set_channel_sender` — raw text
+/// delivery to a channel by `tlg_code` (the "Test" button on admin templates):
+/// it sends the template body as is, with no Tera render.
 #[async_trait::async_trait]
 impl forge_admin::hooks::ChannelSender for NotifierClient {
-    async fn send_raw(&self, tlg_code: String, text: String, parse_mode: String) -> Result<(), String> {
+    async fn send_raw(
+        &self,
+        tlg_code: String,
+        text: String,
+        parse_mode: String,
+    ) -> Result<(), String> {
         match self
             .inner
             .execute(forge_notifier::NotifierCommand::SendRaw {

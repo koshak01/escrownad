@@ -152,6 +152,8 @@
   }
 
   const STORAGE_KEY = "escrownad_wallet";
+  const IDENTITY_KEY = "escrownad_identity";
+  const IDENTITY_URL_KEY = "escrownad_identity_url";
 
   function rememberAddress(address) {
     try {
@@ -159,6 +161,36 @@
       else sessionStorage.removeItem(STORAGE_KEY);
     } catch (_) {}
     setAddress(address || "");
+  }
+
+  /// Keeps the identity status for this tab, so pages rendered after the
+  /// redirect can show the "get verified" prompt without asking again.
+  function rememberIdentity(verified, url) {
+    try {
+      sessionStorage.setItem(IDENTITY_KEY, verified ? "1" : "0");
+      if (url) sessionStorage.setItem(IDENTITY_URL_KEY, url);
+      else sessionStorage.removeItem(IDENTITY_URL_KEY);
+    } catch (_) {}
+  }
+
+  /// Identity status for this tab: `true`, `false`, or `null` when unknown.
+  function identityStatus() {
+    try {
+      const raw = sessionStorage.getItem(IDENTITY_KEY);
+      if (raw === null) return null;
+      return raw === "1";
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Where to send someone who needs an identity.
+  function identityUrl() {
+    try {
+      return sessionStorage.getItem(IDENTITY_URL_KEY) || "";
+    } catch (_) {
+      return "";
+    }
   }
 
   function restoreAddress() {
@@ -199,6 +231,19 @@
         : "Signed in with " + name;
       toast("success", msg);
       setStatus(msg);
+      // Deals require a Cleanverse verified identity on both sides — the escrow
+      // contract itself refuses to fund otherwise. Say so now, while the person
+      // is still here, rather than letting them discover it on a failed
+      // transaction. `verified === null` means we could not ask; stay quiet then.
+      if (resp.verified === false && resp.verify_url) {
+        rememberIdentity(false, resp.verify_url);
+        toast(
+          "warning",
+          "This wallet has no verified identity yet — deals require one",
+        );
+      } else if (resp.verified === true) {
+        rememberIdentity(true, null);
+      }
       window.location.href = resp.redirect || redirectAfter || destDefault;
     } catch (e) {
       console.error("[wallet]", e);
@@ -253,5 +298,7 @@
     getProvider,
     shortAddr,
     providerName,
+    identityStatus,
+    identityUrl,
   };
 })();

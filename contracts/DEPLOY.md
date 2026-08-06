@@ -1,92 +1,95 @@
 # Deploy notes — EscrowLock (USDC)
 
-Расчётный актив — **USDC (ERC-20, 6 знаков)**. Родной MON только на газ.
+The settlement asset is **USDC (ERC-20, 6 decimals)**. Native MON is for gas only.
 
-## Контракты
+## Contracts
 
-| Файл | Роль |
+| File | Role |
 |---|---|
-| `EscrowLock.sol` | замок: fund / release / refund USDC |
-| `IERC20.sol` | минимальный интерфейс токена |
-| `MockUSDC.sol` | не используется — на Monad есть настоящий USDC от Circle |
+| `EscrowLock.sol` | the lock: fund / release / refund USDC |
+| `IERC20.sol` | minimal token interface |
+| `MockUSDC.sol` | unused — Monad has the real USDC from Circle |
 
-## Адреса
+## Addresses
 
-### Monad testnet (chain id 10143) — развёрнуто 2026-08-06
+### Monad testnet (chain id 10143) — deployed 2026-08-06
 
-| Что | Адрес |
+| What | Address |
 |---|---|
 | USDC (Circle) | `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
-| **EscrowLock** | `0xe5289D23829ABE1Aa882c3355A65001de7294a46` |
-| Наблюдатель (он же owner) | `0xC1B8d6B5CbB542e0c8Ae89AA5aBa43518a3282d0` |
-| Казна (комиссия) | `0xf04f664095cdc9d1121ee938db89282fcd616cdb` |
-| **Страховой фонд** | `0xe8b8C85e929b67C91c42a793670A88c6d563A962` |
+| **EscrowLock** | `0x4c9A68831E51853b981EF3e2f1461cdD46430da4` |
+| Observer (also the owner) | `0xC1B8d6B5CbB542e0c8Ae89AA5aBa43518a3282d0` |
+| Treasury (platform fee) | `0xf04f664095cdc9d1121ee938db89282fcd616cdb` |
+| **Insurance fund** | `0xe8b8C85e929b67C91c42a793670A88c6d563A962` |
 
-Транзакция развёртывания:
+Deployment transaction:
 `0x87cb2f7d35622096eaef2f3620e4d83442dae87e40ab4bd819ba7af143337900`
 
-Прежние версии — `0x3CB2C5EA…80be5`, `0x90CB5117…6972A`, `0x5491c3De…81f46`;
-не используются.
+Previous versions — `0x3CB2C5EA…80be5`, `0x90CB5117…6972A`, `0x5491c3De…81f46`;
+not in use.
 
-## Комиссия
+## Fees
 
-**2% платит только покупатель**, сверх цены. Владелец актива получает свою
-цену целиком и площадке не платит ничего.
+**2% is paid by the buyer only**, on top of the price. The asset owner receives
+their price in full and pays the platform nothing.
 
-| Сбор | Ставка | Куда |
+| Charge | Rate | Destination |
 |---|---|---|
-| `feeBps` | `100` = 1% | казна площадки |
-| `insuranceBps` | `100` = 1% | страховой фонд |
+| `feeBps` | `100` = 1% | platform treasury |
+| `insuranceBps` | `100` = 1% | insurance fund |
 
-Потолок суммы сборов — `MAX_TOTAL_BPS` = 500 (5%), зашит в контракт.
-`setFee` физически не даст поставить больше, даже владельцу.
+The cap on the combined charges is `MAX_TOTAL_BPS` = 500 (5%), hardcoded into
+the contract. `setFee` physically will not let anyone set more — not even the owner.
 
 | | |
 |---|---|
-| кто платит | покупатель, сверх цены |
-| когда берётся | только при `release`, то есть при состоявшейся сделке |
-| при возврате | всё возвращается покупателю, включая оба сбора |
+| who pays | the buyer, on top of the price |
+| when it is taken | only on `release`, i.e. only when the deal has gone through |
+| on a refund | everything goes back to the buyer, both charges included |
 
-Обе суммы фиксируются в момент `fund` и записываются в сделку. Поднять
-ставку задним числом для уже оплаченного замка нельзя — защита от нас самих.
+Both amounts are pinned down at the moment of `fund` and written into the deal.
+Raising the rate after the fact for an already funded lock is impossible — that
+is protection against ourselves.
 
-**Страховой фонд — отдельный адрес**, а не подсчёт в базе. Его баланс видит
-любой в эксплорере: сколько накоплено на спорные случаи, столько и лежит.
-Никаких обещаний выплат сверх того, что реально есть.
+**The insurance fund is a separate address**, not a tally in a database. Anyone
+can see its balance in the explorer: whatever has been accumulated for disputed
+cases is exactly what sits there. No promises of payouts beyond what actually
+exists.
 
-Полную сумму к оплате клиент спрашивает у контракта: `quote(amount)` →
-`(total, fee, insuranceFee)`. Ставки не дублируются ни в интерфейсе, ни в
-базе — один источник истины.
+The client asks the contract for the full amount due: `quote(amount)` →
+`(total, fee, insuranceFee)`. The rates are not duplicated in the interface or
+in the database — one source of truth.
 
-Смена ставок и получателей: `setFee(feeBps, insuranceBps, treasury, insurance)`,
-только владелец.
+Changing rates and recipients: `setFee(feeBps, insuranceBps, treasury, insurance)`,
+owner only.
 
-### Monad mainnet (chain id 143) — ещё не развёрнуто
+### Monad mainnet (chain id 143) — not deployed yet
 
-| Что | Адрес |
+| What | Address |
 |---|---|
 | USDC (Circle) | `0x754704Bc059F8C67012fEd69BC8A327a5aafb603` |
 | EscrowLock | — |
 
-## Проверенный прогон (testnet, 2026-08-06)
+## Verified run (testnet, 2026-08-06)
 
-Полный цикл денег отработал:
+The full money cycle worked end to end:
 
-Цена 1 USDC, сборы 1% + 1%:
+Price 1 USDC, charges 1% + 1%:
 
-| Шаг | Результат |
+| Step | Result |
 |---|---|
 | `quote(1 USDC)` | total `1.020000`, fee `0.010000`, insurance `0.010000` |
-| `approve(lock, 1.02)` + `fund` | в замке `1.020000` |
-| `release(dealId, ripeKey)` | продавцу `1.000000`, казне `0.010000`, фонду `0.010000`, замок пуст |
+| `approve(lock, 1.02)` + `fund` | `1.020000` in the lock |
+| `release(dealId, ripeKey)` | seller `1.000000`, treasury `0.010000`, fund `0.010000`, lock empty |
 
-Продавец получил цену целиком — сборы его не коснулись.
-Баланс страхового фонда после прогона: `0.010000 USDC`.
+The seller got the price in full — the charges never touched them.
+Insurance fund balance after the run: `0.010000 USDC`.
 
-Замечание к прогону: в тестнете казна и продавец — **один и тот же адрес**,
-поэтому на балансе они складываются. Фонд отдельный, его видно чисто.
+A note on the run: on testnet the treasury and the seller are **the same
+address**, so their balances add up together. The fund is separate, and it can
+be seen cleanly.
 
-## Развёртывание
+## Deployment
 
 ```bash
 export PATH="$HOME/.foundry/bin:$PATH"
@@ -99,38 +102,39 @@ forge create contracts/EscrowLock.sol:EscrowLock \
   --constructor-args "$USDC_ADDRESS" "$OBSERVER_ADDRESS"
 ```
 
-**Внимание:** `--broadcast` обязан идти ДО `--constructor-args` — иначе
-парсер съедает флаг как третий аргумент конструктора.
+**Careful:** `--broadcast` must come BEFORE `--constructor-args` — otherwise the
+parser swallows the flag as a third constructor argument.
 
-Сборка контрактов: `forge build` (это forge из Foundry, не наша кузница).
-`foundry.toml` указывает `src = "contracts"`, потому что в `src/` лежит Rust.
+Building the contracts: `forge build` (this is forge from Foundry, not our own
+forge). `foundry.toml` points at `src = "contracts"`, because `src/` holds Rust.
 
-## Поток денег покупателя
+## The buyer's money flow
 
 1. `usdc.approve(escrowLock, amount)`
 2. `escrowLock.fund(dealId, seller, amount, deadline, conditionHash)`
-3. Наблюдатель по факту RIPE: `release(dealId, ripeKey)` → USDC продавцу
+3. The observer, on the fact of RIPE: `release(dealId, ripeKey)` → USDC to the seller
 
-Аварийный выход: если наблюдатель молчит и срок вышел, покупатель сам
-зовёт `refundAfterDeadline(dealId)` и забирает деньги.
+Emergency exit: if the observer stays silent and the deadline has passed, the
+buyer calls `refundAfterDeadline(dealId)` themselves and takes the money back.
 
-## Что уходит в цепь
+## What goes on-chain
 
-Только отпечатки: `dealId` (хэш сделки) и `conditionHash` (хэш условия).
-Ни сети, ни организаций, ни описания лота в цепи нет — это остаётся в базе.
-Суммы и адреса на публичной цепи видны всегда, скрыть их без zk нельзя.
+Fingerprints only: `dealId` (hash of the deal) and `conditionHash` (hash of the
+condition). Neither the network, nor the organizations, nor the description of
+the lot is on-chain — that stays in the database. Amounts and addresses are
+always visible on a public chain; hiding them without zk is not possible.
 
-## Переменные окружения
+## Environment variables
 
-| Переменная | Назначение |
+| Variable | Purpose |
 |---|---|
-| `CHAIN_MODE` | `live` — работать с цепью, иначе mock |
+| `CHAIN_MODE` | `live` — work against the chain, otherwise mock |
 | `MONAD_RPC` | `https://testnet-rpc.monad.xyz` |
 | `MONAD_CHAIN_ID` | `10143` |
-| `USDC_ADDRESS` | адрес USDC из таблицы выше |
-| `ESCROW_LOCK_ADDRESS` | адрес замка из таблицы выше |
-| `OBSERVER_PRIVATE_KEY` | ключ наблюдателя — **только в окружении**, не в git |
+| `USDC_ADDRESS` | USDC address from the table above |
+| `ESCROW_LOCK_ADDRESS` | lock address from the table above |
+| `OBSERVER_PRIVATE_KEY` | observer key — **environment only**, never in git |
 
-Живой режим включается, лишь когда заданы и адрес замка, и ключ. Иначе
-сервис остаётся в mock и пишет об этом предупреждение — чтобы неполная
-конфигурация не роняла прод.
+Live mode switches on only when both the lock address and the key are set.
+Otherwise the service stays in mock and logs a warning about it — so that an
+incomplete configuration does not take production down.

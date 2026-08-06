@@ -1,32 +1,33 @@
-// escrow.js — оплата замка покупателем: approve + fund прямо из кошелька.
+// escrow.js — the buyer funds the lock: approve + fund straight from the wallet.
 //
-// Деньги уходят с кошелька покупателя на контракт EscrowLock. Сервер узнаёт
-// об этом не со слов клиента: после отправки мы просто просим его перечитать
-// состояние сделки в цепи (ws deals_funded), и он ставит статус только если
-// контракт подтвердил, что деньги на месте.
+// Money leaves the buyer's wallet for the EscrowLock contract. The server does
+// not learn about it from the client's word: after sending we simply ask it to
+// re-read the deal state on chain (ws deals_funded), and it sets the status only
+// if the contract confirms the money is there.
 //
-// Хэш транзакции серверу не отправляем — он ничего не доказывает.
+// We never send the transaction hash to the server — it proves nothing.
 
 import ws from 'forge/ws';
 import ui from 'forge/ui-actions';
 import toast from 'forge/toast';
 
-// Селекторы функций ERC-20 / EscrowLock (первые 4 байта keccak сигнатуры).
+// ERC-20 / EscrowLock function selectors (first 4 bytes of the keccak signature).
 const SEL_APPROVE = '0x095ea7b3'; // approve(address,uint256)
 const SEL_ALLOWANCE = '0xdd62ed3e'; // allowance(address,address)
 const SEL_BALANCE = '0x70a08231'; // balanceOf(address)
-// Селекторы сверены через `cast sig` — на глаз их писать нельзя.
+// Selectors verified with `cast sig` — writing them from memory is not allowed.
 const SEL_FUND = '0xfb998b39'; // fund(bytes32,address,uint256,uint64,bytes32)
 const SEL_QUOTE = '0xed1bd76c'; // quote(uint256) → (total, fee)
+const SEL_COMPLIANT = '0xa200e5d0'; // isCompliant(address) → bool
 
 const pad = (hexNo0x) => hexNo0x.padStart(64, '0');
 const addrArg = (addr) => pad(addr.toLowerCase().replace(/^0x/, ''));
 const uintArg = (value) => pad(BigInt(value).toString(16));
 const b32Arg = (hex) => pad(hex.replace(/^0x/, ''));
 
-// Провайдер берём тот же, что и при входе (wallet.js): Phantom EVM в
-// приоритете. Свою логику выбора не пишем — иначе оплата пойдёт не тем
-// кошельком, которым человек залогинился.
+// We take the same provider as at sign-in (wallet.js), Phantom EVM first. No
+// selection logic of our own — otherwise the payment would go from a different
+// wallet than the one the person signed in with.
 function provider() {
     const eth = (window.EscrowWallet && window.EscrowWallet.getProvider())
         || window.ethereum;
@@ -42,7 +43,7 @@ async function currentAccount() {
     return accounts[0];
 }
 
-/** Переключает кошелёк на Monad, при необходимости добавляя сеть. */
+/** Switches the wallet to Monad, adding the network if needed. */
 async function ensureNetwork(cfg) {
     const eth = provider();
     const current = await eth.request({ method: 'eth_chainId' });
@@ -53,7 +54,7 @@ async function ensureNetwork(cfg) {
             params: [{ chainId: cfg.chainIdHex }],
         });
     } catch (e) {
-        // 4902 — сеть кошельку неизвестна, пробуем добавить
+        // 4902 — the wallet does not know this network; try adding it
         if (e && (e.code === 4902 || e.code === -32603)) {
             try {
                 await eth.request({
@@ -67,8 +68,8 @@ async function ensureNetwork(cfg) {
                     }],
                 });
             } catch (addErr) {
-                // Phantom не даёт добавлять произвольные сети: тестовые сети
-                // включаются у него в настройках, а не по запросу страницы.
+                // Phantom refuses to add arbitrary networks: test networks are
+                // enabled in its own settings, not on a page's request.
                 throw new Error(
                     'Switch your wallet to Monad Testnet manually. '
                     + 'In Phantom: Settings → Developer Settings → Testnet Mode, then pick Monad Testnet.',
@@ -91,7 +92,7 @@ async function sendTx(from, to, data) {
     });
 }
 
-/** Ждёт, пока транзакция попадёт в блок и подтвердит успешное исполнение. */
+/** Waits for the transaction to land in a block and confirm successful execution. */
 async function waitReceipt(txHash, { timeoutMs = 90000 } = {}) {
     const started = Date.now();
     for (;;) {
@@ -100,8 +101,8 @@ async function waitReceipt(txHash, { timeoutMs = 90000 } = {}) {
             params: [txHash],
         });
         if (receipt) {
-            // status 0x0 — транзакция в блоке, но исполнение откатилось.
-            // Попадание в блок успехом не считаем.
+            // status 0x0 — the transaction is in a block, but execution
+            // reverted. Landing in a block does not count as success.
             if (receipt.status !== '0x1') {
                 throw new Error(`Transaction ${txHash.slice(0, 10)}… reverted on execution`);
             }
@@ -139,14 +140,29 @@ async function payLock(btn) {
         await ensureNetwork(cfg);
         const buyer = await currentAccount();
 
-        // 1. полную сумму спрашиваем у контракта: цена + комиссия площадки.
-        // Ставку не дублируем на клиенте — источник истины один, контракт.
+        // 0. verified identity. We ask the contract itself rather than our
+        // server: the contract is the one that will refuse. With the gate off,
+        // `isCompliant` returns true for anyone and this step changes nothing.
+        btn.textContent = 'Checking identity…';
+        const compliantHex = await ethCall(cfg.lock, SEL_COMPLIANT + addrArg(buyer));
+        if (BigInt(compliantHex || '0x0') === 0n) {
+            const url =
+                (window.EscrowWallet && window.EscrowWallet.identityUrl()) ||
+                'https://test-magiclink.cleanverse.com/';
+            window.open(url, '_blank', 'noopener');
+            throw new Error(
+                'This wallet has no verified identity. Get one — the page opened in a new tab — then try again',
+            );
+        }
+
+        // 1. ask the contract for the full amount: price plus the platform fee.
+        // The rate is not duplicated on the client — one source of truth.
         const quoteHex = await ethCall(cfg.lock, SEL_QUOTE + uintArg(cfg.amount));
         const body = (quoteHex || '').replace(/^0x/, '');
         const total = BigInt('0x' + (body.slice(0, 64) || '0'));
         if (total < cfg.amount) throw new Error('Cannot read the total from the contract');
 
-        // 2. хватает ли USDC на цену вместе с комиссией
+        // 2. is there enough USDC for the price together with the fees
         btn.textContent = 'Checking balance…';
         const balHex = await ethCall(cfg.usdc, SEL_BALANCE + addrArg(buyer));
         const balance = BigInt(balHex || '0x0');
@@ -156,7 +172,7 @@ async function payLock(btn) {
             throw new Error(`Not enough USDC: need ${need}, you have ${have}`);
         }
 
-        // 3. разрешение контракту списать полную сумму
+        // 3. allow the contract to pull the full amount
         const allowHex = await ethCall(
             cfg.usdc,
             SEL_ALLOWANCE + addrArg(buyer) + addrArg(cfg.lock),
@@ -172,7 +188,7 @@ async function payLock(btn) {
             await waitReceipt(approveTx);
         }
 
-        // 4. деньги в замок
+        // 4. money into the lock
         btn.textContent = 'Confirm deposit…';
         const fundData = SEL_FUND
             + b32Arg(cfg.dealId)
@@ -184,13 +200,13 @@ async function payLock(btn) {
         btn.textContent = 'Locking USDC…';
         await waitReceipt(fundTx);
 
-        // 5. сервер сам сверяет факт с контрактом
+        // 5. the server checks the fact against the contract itself
         btn.textContent = 'Confirming…';
         const resp = await ws.request('deals_funded', { hash: cfg.hash });
         ui.dispatch(resp);
     } catch (e) {
         const msg = e && (e.data?.message || e.message) || String(e);
-        // 4001 — пользователь просто закрыл окно кошелька, это не ошибка
+        // 4001 — the user simply closed the wallet dialog; not an error
         if (e && e.code === 4001) {
             toast({ type: 'info', text: 'Cancelled' });
         } else {
