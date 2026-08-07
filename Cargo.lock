@@ -2198,7 +2198,7 @@ checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 
 [[package]]
 name = "forge-admin"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "async-trait",
  "axum",
@@ -2229,7 +2229,7 @@ dependencies = [
 
 [[package]]
 name = "forge-core"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2258,7 +2258,7 @@ dependencies = [
 
 [[package]]
 name = "forge-db"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2277,7 +2277,7 @@ dependencies = [
 
 [[package]]
 name = "forge-db-derive"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2286,7 +2286,7 @@ dependencies = [
 
 [[package]]
 name = "forge-fixed-n"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "serde",
  "sqlx",
@@ -2294,7 +2294,7 @@ dependencies = [
 
 [[package]]
 name = "forge-images"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "anyhow",
  "forge-core",
@@ -2308,11 +2308,12 @@ dependencies = [
  "tracing",
  "uuid",
  "webp",
+ "zune-core",
 ]
 
 [[package]]
 name = "forge-ipc"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "forge-core",
  "futures",
@@ -2326,7 +2327,7 @@ dependencies = [
 
 [[package]]
 name = "forge-notifier"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2346,7 +2347,7 @@ dependencies = [
 
 [[package]]
 name = "forge-session"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "chrono",
  "forge-core",
@@ -2362,7 +2363,7 @@ dependencies = [
 
 [[package]]
 name = "forge-web"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "axum",
  "forge-core",
@@ -2379,7 +2380,7 @@ dependencies = [
 
 [[package]]
 name = "forge-ws"
-version = "2.99.5"
+version = "2.101.1"
 dependencies = [
  "async-trait",
  "axum",
