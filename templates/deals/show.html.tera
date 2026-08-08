@@ -252,6 +252,7 @@
         <span class="party__role">Asset</span>
         <code class="party__addr">{{ deal.asset_token }}</code>
       </div>
+      <p class="muted tile__sub">Holders must carry a valid Cleanverse identity — a transfer to any other wallet reverts on-chain, on this platform or off it.</p>
       {% elif deal.asset_request %}
       <div class="party">
         <span class="party__role">Asset</span>
