@@ -222,6 +222,39 @@ pub async fn launch_asset(
         .ok_or_else(|| CleanverseError::BadResponse("launch: no requestId in reply".into()))
 }
 
+/// Issues the settlement token as a compliance-enforcing wrapper.
+///
+/// Wraps an existing ERC-20 — our settlement USDC — into a Wrapped A-Token that
+/// carries a transfer rule, so settlement lands as a token whose every move is
+/// checked, not only the entry into a deal. Their endpoint names the origin
+/// token `origin_token_address`; the plain `/atoken/launch` rejects an origin
+/// field because it mints a standalone asset instead.
+///
+/// # Parameters
+/// * `config` — credentials and API address
+/// * `launch` — the wrapper metadata, the origin token, and who may hold it
+///
+/// # Returns
+/// * `Ok(String)` — the request id to poll with [`issue_status`]
+/// * `Err(_)` — refused outright
+pub async fn launch_wrapped_asset(
+    config: &CleanverseConfig,
+    launch: &crate::cleanverse::types::WrappedAssetLaunch,
+) -> Result<String, CleanverseError> {
+    let Some(data) = post_encrypted(config, "/atoken/launch_wrapped_atoken", launch).await? else {
+        return Err(CleanverseError::Api {
+            code: CODE_BUSINESS_FAIL.into(),
+            message: "wrapped issuance was refused".into(),
+        });
+    };
+    data.get("requestId")
+        .and_then(|r| r.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| {
+            CleanverseError::BadResponse("launch_wrapped: no requestId in reply".into())
+        })
+}
+
 /// Where an issuance request has got to.
 ///
 /// Issuance is not instant: they review the application, then mint. Poll this

@@ -162,6 +162,39 @@ pub struct AssetLaunch {
     pub icon: Option<String>,
 }
 
+/// Issues the settlement token itself as a compliance-enforcing wrapper.
+///
+/// Where [`AssetLaunch`] mints the lot as a verified asset, this wraps an
+/// existing ERC-20 — our settlement USDC — into a Wrapped A-Token that carries
+/// the same transfer rule. The point is that settlement then lands as a token
+/// whose every move is checked against the rule, not only the entry into a
+/// deal: the compliance follows the money after release, not just up to it.
+///
+/// Their endpoint is `/atoken/launch_wrapped_atoken`, and the origin token is
+/// named `origin_token_address` — distinct from the plain `/atoken/launch`,
+/// which rejects an origin field because it mints a standalone asset.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WrappedAssetLaunch {
+    /// Chain name as their API spells it.
+    pub chain: String,
+    /// Display name of the wrapped A-Token.
+    pub token_name: String,
+    /// Symbol of the wrapper itself, not of the origin token.
+    pub token_symbol: String,
+    /// Six, to match the origin USDC.
+    pub decimals: u8,
+    /// Wallet that will hold the admin role on the wrapped token.
+    pub admin_address: String,
+    /// Who may hold or receive it — the same shape as an asset rule.
+    pub rule: AssetRule,
+    /// The origin (native) token being wrapped, e.g. Circle USDC on Monad.
+    pub origin_token_address: String,
+    /// URL of the origin token's icon.
+    pub origin_token_icon: String,
+    /// URL of the wrapped token's icon.
+    pub icon: String,
+}
+
 /// Who may hold or receive an asset.
 ///
 /// Field names are theirs: the API layer is snake_case while the on-chain
