@@ -96,8 +96,8 @@
     if (/resource not available|not available|disconnected/i.test(text)) {
       return "Wallet not available — install Phantom or MetaMask and enable EVM";
     }
-    if (/invalid formatting|cannot be shown/i.test(text)) {
-      return "Wallet rejected the sign payload — try again or use MetaMask";
+    if (/invalid formatting|cannot be shown|登录失败/i.test(text)) {
+      return "Wallet could not show the sign request — hard-refresh the page, or try MetaMask / another EVM wallet";
     }
     if (/User rejected|user closed/i.test(text)) {
       return "Connection cancelled";
@@ -111,7 +111,7 @@
     return accounts[0];
   }
 
-  /** Phantom EVM requires hex UTF-8 for personal_sign (plain string → invalid formatting). */
+  /** UTF-8 → 0x-hex for wallets that reject plain personal_sign strings. */
   function utf8ToHex(str) {
     const bytes = new TextEncoder().encode(str);
     let hex = "0x";
@@ -121,23 +121,46 @@
     return hex;
   }
 
+  /**
+   * personal_sign with wallet-specific formatting.
+   *
+   * Phantom EVM often rejects multi-line / odd payloads with
+   * "signature request cannot be shown due to invalid formatting".
+   * It wants hex UTF-8. MetaMask prefers a plain string first.
+   * Server ecrecover always uses the original UTF-8 text (not the hex).
+   */
   async function personalSign(provider, message, address) {
-    // EIP-1193 / Phantom docs: hex-encoded UTF-8 string, then address.
-    // Wallet displays decoded text; server ecrecover uses the same UTF-8 bytes.
+    if (typeof message !== "string" || !message) {
+      throw new Error("Empty sign-in message from server");
+    }
+    // Use the address the wallet returned (checksum), not a re-cased copy.
+    const addr = address;
     const msgHex = utf8ToHex(message);
+    const isPhantom = !!(provider && provider.isPhantom);
+
+    async function trySign(params) {
+      return provider.request({ method: "personal_sign", params });
+    }
+
+    if (isPhantom) {
+      try {
+        return await trySign([msgHex, addr]);
+      } catch (e1) {
+        const t = ((e1 && e1.message) || String(e1)).toLowerCase();
+        if (/invalid formatting|invalid params|must provide|cannot be shown/i.test(t)) {
+          return trySign([message, addr]);
+        }
+        throw e1;
+      }
+    }
+
+    // MetaMask / others: plain string first, hex fallback.
     try {
-      return await provider.request({
-        method: "personal_sign",
-        params: [msgHex, address],
-      });
+      return await trySign([message, addr]);
     } catch (e1) {
-      // Some injectors still accept raw UTF-8 (MetaMask)
-      const msg = (e1 && e1.message) || String(e1);
-      if (/invalid formatting|invalid params|must provide/i.test(msg)) {
-        return provider.request({
-          method: "personal_sign",
-          params: [message, address],
-        });
+      const t = ((e1 && e1.message) || String(e1)).toLowerCase();
+      if (/invalid formatting|invalid params|must provide|cannot be shown/i.test(t)) {
+        return trySign([msgHex, addr]);
       }
       throw e1;
     }

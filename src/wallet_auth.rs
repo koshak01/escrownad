@@ -84,14 +84,10 @@ impl WalletChallenges {
     pub async fn issue(&self, session_id: &str, address: &str) -> Result<String, String> {
         let address = normalize_address(address)?;
         let nonce = new_nonce()?;
-        // Keep message simple (UTF-8). Client hex-encodes for Phantom personal_sign.
-        let message = format!(
-            "EscrowNad sign-in\n\
-Address: {address}\n\
-Network: Monad\n\
-Nonce: {nonce}\n\
-This proves you own this wallet. No funds will be transferred."
-        );
+        // Short ASCII only. Long multi-line challenges make Phantom EVM refuse
+        // personal_sign with "invalid formatting" (the sign UI never opens).
+        // Client still hex-encodes for Phantom; MetaMask accepts plain UTF-8.
+        let message = format!("EscrowNad login {address} {nonce}");
 
         let mut map = self.pending.lock().await;
         prune(&mut map);
