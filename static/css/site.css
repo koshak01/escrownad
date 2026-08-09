@@ -782,6 +782,17 @@ html.light .status--released { background: #e0f8ea; color: #0d5c32; }
   white-space: nowrap;
   min-width: 0;
 }
+/* On-chain hashes as explorer links — same mono look, obvious it's clickable. */
+a.party__link {
+  font-family: ui-monospace, monospace;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+a.party__link:hover {
+  color: var(--text);
+}
 .deal-no {
   font-family: ui-monospace, monospace;
   font-size: 15px;

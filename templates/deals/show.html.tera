@@ -220,29 +220,54 @@
   {% endif %}
 
   {# ── parties and chain ───────────────────────────────────────────── #}
+  {# Explorer links: real 0x addresses/txs open Monadscan in a new tab.
+     Mock stand-ins stay plain text. Template vars come from `explorer` in
+     pages/deals.rs (DealShowPage). #}
   <div class="deal-grid deal-grid--wide">
     <section class="card">
       <h2 class="card__title">Parties</h2>
       <div class="party">
         <span class="party__role">Seller</span>
+        {% if explorer.seller %}
+        <a class="party__addr party__link" href="{{ explorer.seller }}" target="_blank" rel="noopener noreferrer" title="Open seller wallet on Monad explorer">{{ deal.seller_wallet }}</a>
+        {% else %}
         <code class="party__addr">{{ deal.seller_wallet | default(value="—") }}</code>
+        {% endif %}
         {% if seller_verified %}<span class="badge-ok" title="Completed deal before">✓</span>{% endif %}
       </div>
       <div class="party">
         <span class="party__role">Buyer</span>
+        {% if explorer.buyer %}
+        <a class="party__addr party__link" href="{{ explorer.buyer }}" target="_blank" rel="noopener noreferrer" title="Open buyer wallet on Monad explorer">{{ deal.buyer_wallet }}</a>
+        {% else %}
         <code class="party__addr">{{ deal.buyer_wallet | default(value="—") }}</code>
+        {% endif %}
       </div>
     </section>
 
     <section class="card">
       <h2 class="card__title">On-chain</h2>
+      {% if explorer.contract %}
+      <div class="party">
+        <span class="party__role">Contract</span>
+        <a class="party__addr party__link" href="{{ explorer.contract }}" target="_blank" rel="noopener noreferrer" title="Open EscrowLock on Monad explorer (verified source)">{{ explorer.contract_label }}</a>
+      </div>
+      {% endif %}
       <div class="party">
         <span class="party__role">Lock</span>
+        {% if explorer.lock_tx %}
+        <a class="party__addr party__link" href="{{ explorer.lock_tx }}" target="_blank" rel="noopener noreferrer" title="Open lock transaction on Monad explorer">{{ deal.lock_tx }}</a>
+        {% else %}
         <code class="party__addr">{{ deal.lock_tx | default(value="—") }}</code>
+        {% endif %}
       </div>
       <div class="party">
         <span class="party__role">Release</span>
+        {% if explorer.release_tx %}
+        <a class="party__addr party__link" href="{{ explorer.release_tx }}" target="_blank" rel="noopener noreferrer" title="Open release transaction on Monad explorer">{{ deal.release_tx }}</a>
+        {% else %}
         <code class="party__addr">{{ deal.release_tx | default(value="—") }}</code>
+        {% endif %}
       </div>
       {# The lot as a verified asset. Issued when the operator approved it, with
          the identity check built in: it cannot be transferred to a wallet
@@ -250,7 +275,11 @@
       {% if deal.asset_token %}
       <div class="party">
         <span class="party__role">Asset</span>
+        {% if explorer.asset %}
+        <a class="party__addr party__link" href="{{ explorer.asset }}" target="_blank" rel="noopener noreferrer" title="Open verified asset on Monad explorer">{{ deal.asset_token }}</a>
+        {% else %}
         <code class="party__addr">{{ deal.asset_token }}</code>
+        {% endif %}
       </div>
       <p class="muted tile__sub">Holders must carry a valid Cleanverse identity — a transfer to any other wallet reverts on-chain, on this platform or off it.</p>
       {% elif deal.asset_request %}
@@ -262,7 +291,7 @@
       {% if deal.del_status == "awaiting_proof" %}
       <p class="muted tile__sub">Waiting for the RIPE fact. USDC stays locked until it matches.</p>
       {% elif deal.del_status == "released" %}
-      <p class="muted tile__sub">Released — USDC paid to the seller.</p>
+      <p class="muted tile__sub">Released — USDC paid to the seller. Open <strong>Release</strong> above to verify on the explorer.</p>
       {% endif %}
       <p class="muted tile__sub"><a href="/oracle/">How does the oracle work?</a></p>
     </section>

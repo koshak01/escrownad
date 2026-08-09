@@ -433,6 +433,76 @@ struct ChainParams {
     deadline: u64,
 }
 
+/// Clickable Monad explorer URLs for the deal card's On-chain / Parties block.
+///
+/// Each field is `Some` only when the stored value is a real hex word that the
+/// explorer can open. Mock stand-ins stay as plain text in the template.
+#[derive(Debug, Default, Serialize)]
+struct ExplorerLinks {
+    /// EscrowLock contract (verified source on the explorer).
+    contract: Option<String>,
+    /// Label shown next to the contract link (short address).
+    contract_label: Option<String>,
+    /// Fund / lock transaction, when we actually stored a tx hash.
+    lock_tx: Option<String>,
+    /// Release transaction — the proof money left the lock.
+    release_tx: Option<String>,
+    seller: Option<String>,
+    buyer: Option<String>,
+    /// Cleanverse A-Token address, when the lot was issued as a verified asset.
+    asset: Option<String>,
+}
+
+/// Builds explorer links for one deal.
+///
+/// Chain id comes from the live `chain` constant when present; otherwise we
+/// fall back to Monad testnet (10143), which is where every public demo runs.
+fn explorer_links(deal: &Deal, ctx: &RequestContext) -> ExplorerLinks {
+    let chain_id = crate::chain::types::ChainConfig::from_constants(&ctx.global.constants)
+        .map(|c| c.chain_id)
+        .filter(|id| *id > 0)
+        .unwrap_or(10143);
+
+    let lock_addr = crate::chain::types::ChainConfig::from_constants(&ctx.global.constants)
+        .map(|c| c.lock)
+        .filter(|s| !s.trim().is_empty());
+
+    // `lock_tx` is sometimes the on-chain deal id (bytes32), not a transaction
+    // hash — that value must not become a /tx/ link or the explorer 404s mid-demo.
+    let deal_fingerprint = crate::chain::deal_id_hex(&deal.del_hash);
+    let lock_tx_url = deal.lock_tx.as_deref().and_then(|raw| {
+        let t = raw.trim();
+        if t.eq_ignore_ascii_case(&deal_fingerprint) {
+            return None;
+        }
+        crate::chain::explorer_tx_url(chain_id, t)
+    });
+
+    ExplorerLinks {
+        contract_label: lock_addr.clone(),
+        contract: lock_addr
+            .as_deref()
+            .and_then(|a| crate::chain::explorer_address_url(chain_id, a)),
+        lock_tx: lock_tx_url,
+        release_tx: deal
+            .release_tx
+            .as_deref()
+            .and_then(|t| crate::chain::explorer_tx_url(chain_id, t)),
+        seller: deal
+            .seller_wallet
+            .as_deref()
+            .and_then(|a| crate::chain::explorer_address_url(chain_id, a)),
+        buyer: deal
+            .buyer_wallet
+            .as_deref()
+            .and_then(|a| crate::chain::explorer_address_url(chain_id, a)),
+        asset: deal
+            .asset_token
+            .as_deref()
+            .and_then(|a| crate::chain::explorer_address_url(chain_id, a)),
+    }
+}
+
 /// Builds the payment parameters. `None` when the chain is unconfigured, or
 /// the deal has nothing to pay for (no seller, no amount, no deadline).
 ///
@@ -550,6 +620,9 @@ impl Page for DealShowPage {
         if let Some(c) = chain {
             ctx.insert("chain", &c);
         }
+        // Clickable explorer URLs for the On-chain card. Plain hex is useless
+        // in a demo: judges (and we) need one click into Monadscan.
+        ctx.insert("explorer", &explorer_links(&deal, ctx));
         ctx.insert("created_at", &date_full(deal.del_dat));
         ctx.insert(
             "expires_at",
