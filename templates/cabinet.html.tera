@@ -4,6 +4,9 @@
 
 {% block content %}
 <main class="app-main">
+  {% if not market_allowed %}
+  {% include "deals/_market_gate.html.tera" %}
+  {% else %}
   <div class="app-main__bar">
     <div>
       <h1 class="app-main__title">My deals</h1>
@@ -15,13 +18,7 @@
     </a>
   </div>
 
-  {% if not logged_in %}
-  <p class="banner-connect">
-    <button type="button" class="ds-btn ds-btn--primary" data-wallet-connect data-redirect-after="/deals/">
-      Connect wallet
-    </button>
-  </p>
-  {% elif deals | length == 0 %}
+  {% if deals | length == 0 %}
   <p class="muted">No deals yet. <a href="/deals/">Browse offers</a> or <a href="/deals/new/">add one</a>.</p>
   {% else %}
   <div class="offer-grid">
@@ -36,6 +33,7 @@
     </a>
     {% endfor %}
   </div>
+  {% endif %}
   {% endif %}
 </main>
 {% endblock %}
