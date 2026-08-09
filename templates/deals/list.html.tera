@@ -5,6 +5,10 @@
 {% block content %}
 <main class="app-main">
 
+  {% if not market_allowed %}
+  {% include "deals/_market_gate.html.tera" %}
+  {% else %}
+
   <div class="board-bar" data-board data-scope="{{ scope }}">
     {# set: market / mine / disputes #}
     <div class="board-bar__group">
@@ -51,10 +55,6 @@
   </p>
   {% endif %}
 
-  {% if scope != "all" and scope != "settled" and not logged_in %}
-  <p class="app-hint muted">Connect your wallet to see this list.</p>
-  {% endif %}
-
   <div class="data-table-wrap">
     <table class="data-table">
       <thead>
@@ -73,6 +73,7 @@
       {% include "deals/_rows.html.tera" %}
     </table>
   </div>
+  {% endif %}
 </main>
 {% endblock %}
 

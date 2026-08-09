@@ -241,6 +241,9 @@
           "warning",
           "This wallet has no verified identity yet — deals require one",
         );
+        // Open Cleanverse self-service; the market page will still show the gate
+        // until they reconnect with a valid CVI.
+        window.open(resp.verify_url, "_blank", "noopener");
       } else if (resp.verified === true) {
         rememberIdentity(true, null);
       }

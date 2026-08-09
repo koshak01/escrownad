@@ -15,6 +15,7 @@
 
 pub mod chain;
 pub mod cleanverse;
+pub mod market_access;
 pub mod models;
 pub mod moderation;
 pub mod observer;

@@ -1,0 +1,41 @@
+{# Gate: wallet + Cleanverse CVI required for the market.
+   Inserted on board / card / new listing / cabinet when access is denied. #}
+<section class="card market-gate">
+  <h2 class="card__title">Market access</h2>
+
+  {% if need_connect %}
+  <p class="market-gate__lead">
+    Connect your wallet and sign the message to open the market.
+    Listings and deals are only available to signed-in wallets.
+  </p>
+  <p class="market-gate__actions">
+    <button type="button" class="app-top__cta app-top__cta--solid"
+            data-wallet-connect data-redirect-after="{{ gate_redirect }}">
+      <span class="ico ico--wallet" aria-hidden="true"></span>
+      <span class="cta-label">Connect wallet</span>
+    </button>
+  </p>
+  <p class="app-ctl__hint">
+    About the product and how the oracle works stay public —
+    <a href="/about/">About</a> · <a href="/oracle/">How it works</a>.
+  </p>
+  {% elif need_identity %}
+  <p class="market-gate__lead">
+    A <strong>Cleanverse verified identity (CVI)</strong> is required to view deals,
+    add a listing, or take any market action. This wallet has none yet.
+  </p>
+  <p class="market-gate__actions">
+    <a class="app-top__cta app-top__cta--solid" href="{{ verify_url }}"
+       target="_blank" rel="noopener noreferrer">
+      Get verified identity
+    </a>
+    <button type="button" class="app-top__cta"
+            data-wallet-connect data-redirect-after="{{ gate_redirect }}">
+      I already verified — reconnect
+    </button>
+  </p>
+  <p class="app-ctl__hint">
+    Verification runs on Cleanverse. When you are done, come back and connect the same wallet again.
+  </p>
+  {% endif %}
+</section>

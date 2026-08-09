@@ -45,6 +45,8 @@ pub async fn deals_search(
     p: DealSearchParams,
     actor_usr_id: Option<i64>,
 ) -> Result<ActionResp, String> {
+    // Live search must not leak rows to wallets without CVI.
+    let access = crate::market_access::resolve(actor_usr_id).await;
     let scope = BoardScope::parse(p.scope.as_deref());
     let side = p
         .side
@@ -60,7 +62,11 @@ pub async fn deals_search(
         query: query.clone(),
         scope: scope.as_str().to_string(),
     };
-    let (rows, total) = board_rows(&filter, scope, actor_usr_id).await?;
+    let (rows, total) = if access.is_allowed() {
+        board_rows(&filter, scope, actor_usr_id).await?
+    } else {
+        (Vec::new(), 0)
+    };
 
     let view = RowsView {
         shown: rows.len(),
@@ -185,8 +191,9 @@ fn parse_deadline(raw: Option<&str>) -> Result<Option<forge_core::Timestamp>, St
     Ok(Some(forge_core::Timestamp::from_dt(end_of_day)))
 }
 
-fn require_actor(actor: Option<i64>) -> Result<i64, String> {
-    actor.ok_or_else(|| "authentication required".to_string())
+/// Signed-in wallet with a valid Cleanverse identity — every market mutation.
+async fn require_market_actor(actor: Option<i64>) -> Result<i64, String> {
+    crate::market_access::require_cvi(actor).await
 }
 
 fn is_seller(deal: &Deal, actor: i64) -> bool {
@@ -210,7 +217,7 @@ pub async fn deals_save(
     p: DealSaveParams,
     actor_usr_id: Option<i64>,
 ) -> Result<ActionResp, String> {
-    let actor = require_actor(actor_usr_id)?;
+    let actor = require_market_actor(actor_usr_id).await?;
     let publish = p
         .publish
         .as_deref()
@@ -478,7 +485,7 @@ pub async fn deals_funded(
     p: DealFundedParams,
     actor_usr_id: Option<i64>,
 ) -> Result<ActionResp, String> {
-    let actor = require_actor(actor_usr_id)?;
+    let actor = require_market_actor(actor_usr_id).await?;
     let mut deal = app_context()
         .db
         .get_deal_by_hash(p.hash.clone())
@@ -686,7 +693,7 @@ pub async fn deals_action(
     p: DealActionParams,
     actor_usr_id: Option<i64>,
 ) -> Result<ActionResp, String> {
-    let actor = require_actor(actor_usr_id)?;
+    let actor = require_market_actor(actor_usr_id).await?;
     let mut deal = app_context()
         .db
         .get_deal_by_hash(p.hash.clone())

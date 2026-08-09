@@ -793,6 +793,24 @@ a.party__link {
 a.party__link:hover {
   color: var(--text);
 }
+
+/* Market gate: connect wallet / obtain CVI before seeing deals. */
+.market-gate {
+  max-width: 36rem;
+  margin: 1.5rem auto;
+}
+.market-gate__lead {
+  margin: 0 0 1rem;
+  line-height: 1.45;
+  font-size: 15px;
+}
+.market-gate__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0 0 1rem;
+}
 .deal-no {
   font-family: ui-monospace, monospace;
   font-size: 15px;

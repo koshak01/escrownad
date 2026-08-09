@@ -136,8 +136,8 @@ forge_admin::wsgate_handler_with_admin! {
             | forge_ws::AuthRequirement::Authenticated;
         async fn deals_action (&self, conn: &_, params: DealActionParams) -> ActionResp
             | forge_ws::AuthRequirement::Authenticated;
-        // Live board search is public: the market is visible without a wallet.
-        // The "mine" and "arbitration" sets are simply empty without a session.
+        // Board search: still Public at the WS layer so the page can call it,
+        // but the handler returns empty rows without a CVI wallet (see market_access).
         async fn deals_search (&self, conn: &_, params: DealSearchParams) -> ActionResp
             | forge_ws::AuthRequirement::Public;
         // The buyer funded the lock — the server verifies the fact on chain.

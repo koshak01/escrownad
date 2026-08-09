@@ -289,11 +289,29 @@ impl Page for DealsListPage {
         let scope = BoardScope::parse(Some(filter.scope.as_str()));
         let actor = ctx.user.as_ref().map(|u| u.usr_id);
 
-        let (rows, total) = board_rows(&filter, scope, actor)
-            .await
-            .map_err(WsError::PageLoad)?;
+        // Market is closed without a wallet + Cleanverse CVI.
+        let access = crate::market_access::resolve(actor).await;
+        let mut gate = crate::market_access::TemplateFlags::default();
+        access.insert_template_flags(&mut gate);
+        ctx.insert("market_allowed", &gate.market_allowed);
+        ctx.insert("need_connect", &gate.need_connect);
+        ctx.insert("need_identity", &gate.need_identity);
+        ctx.insert("verify_url", &gate.verify_url);
+        ctx.insert("gate_redirect", &"/deals/");
 
-        let fund = insurance_fund_usdc(&ctx.global.constants).await;
+        let (rows, total) = if access.is_allowed() {
+            board_rows(&filter, scope, actor)
+                .await
+                .map_err(WsError::PageLoad)?
+        } else {
+            (Vec::new(), 0)
+        };
+
+        let fund = if access.is_allowed() {
+            insurance_fund_usdc(&ctx.global.constants).await
+        } else {
+            None
+        };
 
         ctx.insert("shown", &rows.len());
         ctx.insert("total", &total);
@@ -318,6 +336,15 @@ impl Page for DealNewPage {
         "deals/new.html.tera"
     }
     async fn load(&self, ctx: &mut RequestContext) -> WsResult<()> {
+        let actor = ctx.user.as_ref().map(|u| u.usr_id);
+        let access = crate::market_access::resolve(actor).await;
+        let mut gate = crate::market_access::TemplateFlags::default();
+        access.insert_template_flags(&mut gate);
+        ctx.insert("market_allowed", &gate.market_allowed);
+        ctx.insert("need_connect", &gate.need_connect);
+        ctx.insert("need_identity", &gate.need_identity);
+        ctx.insert("verify_url", &gate.verify_url);
+        ctx.insert("gate_redirect", &"/deals/new/");
         ctx.insert("user", &ctx.user.is_some());
         ctx.insert("offer_types", &OFFER_TYPES);
         // default listing lifetime — +31 days
@@ -558,6 +585,23 @@ impl Page for DealShowPage {
             .filter(|s| !s.is_empty())
             .cloned()
             .ok_or_else(|| WsError::PageLoad("invalid deal hash".into()))?;
+        let actor = ctx.user.as_ref().map(|u| u.usr_id);
+        let access = crate::market_access::resolve(actor).await;
+        let mut gate = crate::market_access::TemplateFlags::default();
+        access.insert_template_flags(&mut gate);
+        ctx.insert("market_allowed", &gate.market_allowed);
+        ctx.insert("need_connect", &gate.need_connect);
+        ctx.insert("need_identity", &gate.need_identity);
+        ctx.insert("verify_url", &gate.verify_url);
+        ctx.insert("gate_redirect", &format!("/deals/{hash}/"));
+
+        // Without CVI we do not load or render the lot — no leak via HTML.
+        if !access.is_allowed() {
+            ctx.insert("deal_no", &"———".to_string());
+            ctx.insert("logged_in", &actor.is_some());
+            return Ok(());
+        }
+
         let deal = app_context()
             .db
             .get_deal_by_hash(hash)
@@ -581,7 +625,6 @@ impl Page for DealShowPage {
 
         // The actor's roles — the template shows only the buttons that belong
         // to them. These rules must match `ws_handlers::deals::authorize_action`.
-        let actor = ctx.user.as_ref().map(|u| u.usr_id);
         let is_seller = actor.is_some() && actor == deal.seller_usr_id;
         let is_buyer = actor.is_some() && actor == deal.buyer_usr_id;
         let is_creator = if deal.listing_side == "request" {
