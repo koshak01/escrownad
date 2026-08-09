@@ -1,6 +1,6 @@
 # EscrowNad — Submission Summary
 
-**Track 01 — RWA: Real-World Assets, Verified** · Live: `escrownad.com`
+**Track 01 — RWA: Real-World Assets, Verified** · Live: [escrownad.com](https://escrownad.com)
 
 ## Problem
 
@@ -40,49 +40,77 @@ AFRINIC). Because the process is slow by nature, an expired deal goes to
 arbitration rather than an automatic refund — the seller may already have
 started the transfer and lost the resource.
 
-**Already running:** verified escrow contract on live chain; nine settled deals
-on the public board, each traceable to a real registry record; 1% platform fee
-plus 1% into an insurance fund at a separate address whose balance anyone can
-read on-chain (fee cap of 5% hard-wired via `MAX_TOTAL_BPS`); operator review of
-every listing; and a full cycle completed on chain — buyer funded, observer
-matched the registry record, money released, no human step in between.
+**Already running:** verified escrow contract on live chain; ten settled deals
+on the public board (tab **Settled**), each tied to a registry fact; 1% platform
+fee plus 1% into an insurance fund at a separate address whose balance anyone
+can read on-chain (fee cap of 5% hard-wired via `MAX_TOTAL_BPS`); operator review
+of every listing; Cleanverse identity on both parties and verified assets from
+issuance; and a full cycle completed on chain — buyer funded, observer matched
+the registry record, money released, no human step in between. On each deal
+card, Lock / Release / Contract open the Monad explorer so the chain state is
+one click away.
 
 ## CVI · CVA Integration Points
 
 We built the proof layer and the settlement layer. The identity layer is where
 trust still leaked: a counterparty used to be a wallet address we knew nothing
-about. That gate now exists, and it lives in the contract rather than around it.
+about. That gate now exists, and it lives **in the contract rather than around
+it** — Cleanverse CVI is not a UI badge.
 
-**The identity check is on-chain.** `EscrowLock.fund` calls `complianceVerify`
-on the CCP validator for **both** parties — the buyer paying and the seller
-receiving — before a single token moves. An unverified wallet cannot end up on
-either side of a deal, and no interface trick gets around it, because the check
-sits where the money does. Source: `contracts/EscrowLock.sol`, interface in
-`contracts/IAPassComplianceValidator.sol`.
+### CVI — identity gate on-chain (source)
 
-The validator address is set after deployment rather than in the constructor,
-deliberately: a compliance pool is registered with the validator *by its own
-address*, which does not exist until the contract is on chain. Wiring it at
-construction time would lock the contract out of its own registration.
+`EscrowLock.fund` calls `complianceVerify` on the Cleanverse CCP validator for
+**both** parties before a single token moves:
 
-Around that gate the application does the courteous half: it asks `query_apass`
-at sign-in and, before spending gas, asks the contract itself via
-`isCompliant(address)`. Someone without an identity is told so and handed the
-link to get one, instead of discovering the requirement through a failed
-transaction. Personal data never reaches us — only the fact of verification.
+```solidity
+// contracts/EscrowLock.sol — function fund(...)
+if (address(validator) != address(0)) {
+    if (!validator.complianceVerify(address(this), msg.sender)) {
+        revert NotCompliant(msg.sender);   // buyer
+    }
+    if (!validator.complianceVerify(address(this), seller)) {
+        revert NotCompliant(seller);       // seller
+    }
+}
+```
 
-| Primitive | Integration point |
-|---|---|
-| **CVI — parties** | **Enforced in `EscrowLock.fund` for both sides.** Mandatory, no exceptions and no thresholds: no verified identity, no deal. A verified identity is matched against the entity named in the registry as the holder of record. |
-| **CVI — privacy** | A seller must prove entitlement without announcing it publicly. We could only hide data in our own interface — trust would just move from the seller to us. With CVI personal data stays with its owner and only the fact of verification is exposed. |
-| **CVI — proof of control** | Complements our existing mechanism: the registry record lists a holder contact address, and we require confirmation from it. That proves control of the resource; CVI proves who the controller is. |
-| **CVA — asset** | A resource confirmed by a registry record is a verifiable asset with traceable origin. Existing attachment points: two independent sources, a hash of the deal condition stored in the contract, and a fact key emitted in the release event. |
-| **Travel Rule — settlement** | Settlement is a single contract call where both parties and the amount are already known. One integration point; no flow rebuild. |
-| **CCP — review & arbitration** | Listing review and expired-deal arbitration are manual today. Both are asking to become programmable pre-transaction rules. |
+- Contract: `contracts/EscrowLock.sol`
+- Validator interface: `contracts/IAPassComplianceValidator.sol`
+- An unverified wallet cannot sit on either side of a deal; no interface trick
+  gets around it, because the check sits where the money does.
+- The validator address is set after deployment (`setValidator`), not in the
+  constructor: a compliance pool is registered with the validator *by its own
+  address*, which does not exist until the contract is on chain.
 
-**Order of work:** CVI as mandatory gate plus seller-to-holder matching first —
-largest trust gap, immediately visible in the UI. Then CVA on the asset and
-Travel Rule in settlement.
+Around that hard gate the application does the courteous half: `query_apass` at
+sign-in and `isCompliant(address)` before spending gas
+(`src/cleanverse/core.rs`). Someone without an identity is told so and handed
+the Cleanverse magic link. Personal data never reaches us — only the fact of
+verification.
+
+### CVA — verified asset from issuance (source)
+
+When an operator approves a listing, the lot is issued as a Cleanverse verified
+asset (`launch_asset` → `/atoken/launch` in `src/cleanverse/core.rs`) with a
+transfer rule built into the token (`AssetRule` in `src/cleanverse/types.rs`).
+Default rule: any valid identity (this market is international; tighter tiers
+and country lists are available per issuance when a deal needs them).
+
+A transfer to a wallet that fails the rule reverts on-chain — on this platform
+or off it. The rule is shown on the deal card next to the asset address. We also
+support wrapping the settlement token (`launch_wrapped_asset` /
+`/atoken/launch_wrapped_atoken`) so compliance can follow the money after
+release, not only entry into the deal.
+
+| Primitive | Integration point | State |
+|---|---|---|
+| **CVI — parties** | `EscrowLock.fund` → `complianceVerify` for buyer **and** seller | **In contract, live** |
+| **CVI — UX** | `query_apass` / `isCompliant` before gas; magic link if missing | **Live** |
+| **CVI — privacy** | Personal data stays with the owner; we only see verification fact | **By design (CVI)** |
+| **CVI — proof of control** | Registry holder contact confirms control of the resource; CVI confirms who the controller is | Complements existing check |
+| **CVA — asset** | Issue on approve with `AssetRule`; rule on deal card; optional wrapped USDC | **Live (issue + card); wrap API wired** |
+| **Travel Rule — settlement** | Single contract call; both parties and amount known | Ready attachment point |
+| **CCP — review & arbitration** | Listing review and expired-deal arbitration | Manual today; natural for programmable rules |
 
 ## Deployed Chains
 
@@ -95,18 +123,21 @@ Travel Rule in settlement.
 
 | What | Address |
 |---|---|
-| **EscrowLock** (verified source) | `0x4c9A68831E51853b981EF3e2f1461cdD46430da4` |
-| USDC (Circle, native — 6 decimals) | `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
-| Insurance fund | `0xe8b8C85e929b67C91c42a793670A88c6d563A962` |
+| **EscrowLock** (verified source) | [`0x4c9A68831E51853b981EF3e2f1461cdD46430da4`](https://testnet.monadexplorer.com/address/0x4c9A68831E51853b981EF3e2f1461cdD46430da4) |
+| USDC (Circle, 6 decimals) | [`0x534b2f3A21130d7a60830c2Df862319e593943A3`](https://testnet.monadexplorer.com/address/0x534b2f3A21130d7a60830c2Df862319e593943A3) |
+| Insurance fund | [`0xe8b8C85e929b67C91c42a793670A88c6d563A962`](https://testnet.monadexplorer.com/address/0xe8b8C85e929b67C91c42a793670A88c6d563A962) |
 
-Settlement asset is native Circle USDC, not a wrapper; native MON is used for
-gas only. RPC `https://testnet-rpc.monad.xyz`, explorer
-`testnet.monadexplorer.com`.
+Settlement asset is Circle USDC on Monad; native MON is gas only. RPC
+`https://testnet-rpc.monad.xyz`, explorer `testnet.monadexplorer.com`.
+
+**Live demo:** [escrownad.com](https://escrownad.com) · board
+[escrownad.com/deals/?scope=settled](https://escrownad.com/deals/?scope=settled) ·
+oracle [escrownad.com/oracle/](https://escrownad.com/oracle/)
 
 ---
 
 **Where this goes.** The model works wherever three things hold: the asset has a
-holder, ownership can be checked, and the transfer is published by a source both
+holder, holding can be checked, and the transfer is published by a source both
 sides trust. Everything else — contract, fee, insurance fund, arbitration, party
 verification — is already built and independent of what is sold. A new market is
 a new oracle module, not a new product. Next in descending order of source
