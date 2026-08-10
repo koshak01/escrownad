@@ -80,11 +80,23 @@
 
   function providerName(p) {
     if (!p) return "";
-    if (p.isPhantom) return "Phantom";
+    if (isPhantomProvider(p)) return "Phantom";
     if (p.isMetaMask) return "MetaMask";
     if (p.isRabby) return "Rabby";
     if (p.isCoinbaseWallet) return "Coinbase";
     return "wallet";
+  }
+
+  /** Phantom's ethereum provider sometimes lacks isPhantom — still is Phantom. */
+  function isPhantomProvider(p) {
+    if (!p) return false;
+    if (p.isPhantom) return true;
+    try {
+      if (window.phantom && window.phantom.ethereum && window.phantom.ethereum === p) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   function friendlyError(e) {
@@ -97,7 +109,7 @@
       return "Wallet not available — install Phantom or MetaMask and enable EVM";
     }
     if (/invalid formatting|cannot be shown|登录失败/i.test(text)) {
-      return "Wallet could not show the sign request — hard-refresh the page, or try MetaMask / another EVM wallet";
+      return "Phantom could not show the sign popup. Hard-refresh (Ctrl+Shift+R), enable EVM/Testnet Mode in Phantom, or connect with MetaMask.";
     }
     if (/User rejected|user closed/i.test(text)) {
       return "Connection cancelled";
@@ -111,7 +123,7 @@
     return accounts[0];
   }
 
-  /** UTF-8 → 0x-hex for wallets that reject plain personal_sign strings. */
+  /** UTF-8 → 0x-hex for wallets that want hex personal_sign payloads. */
   function utf8ToHex(str) {
     const bytes = new TextEncoder().encode(str);
     let hex = "0x";
@@ -121,49 +133,68 @@
     return hex;
   }
 
+  function errText(e) {
+    return ((e && e.message) || (e && e.data && e.data.message) || String(e || "")).toLowerCase();
+  }
+
+  function isFormatError(e) {
+    const t = errText(e);
+    return /invalid formatting|invalid params|must provide|cannot be shown|登录失败|格式/.test(t);
+  }
+
   /**
-   * personal_sign with wallet-specific formatting.
+   * personal_sign — try every common encoding Phantom/MetaMask accept.
    *
-   * Phantom EVM often rejects multi-line / odd payloads with
-   * "signature request cannot be shown due to invalid formatting".
-   * It wants hex UTF-8. MetaMask prefers a plain string first.
-   * Server ecrecover always uses the original UTF-8 text (not the hex).
+   * Server ecrecover always uses the original UTF-8 challenge string (not hex).
+   * Phantom is known to reject some shapes with "invalid formatting" while
+   * accepting another; we do not guess — we try until one opens the popup.
    */
   async function personalSign(provider, message, address) {
     if (typeof message !== "string" || !message) {
       throw new Error("Empty sign-in message from server");
     }
-    // Use the address the wallet returned (checksum), not a re-cased copy.
-    const addr = address;
+    const checksum = address;
+    const lower = String(address).toLowerCase();
     const msgHex = utf8ToHex(message);
-    const isPhantom = !!(provider && provider.isPhantom);
+    const phantom = isPhantomProvider(provider);
 
-    async function trySign(params) {
-      return provider.request({ method: "personal_sign", params });
-    }
+    // Each entry: [data, from]
+    const attempts = phantom
+      ? [
+          [msgHex, lower],
+          [msgHex, checksum],
+          [message, lower],
+          [message, checksum],
+        ]
+      : [
+          [message, checksum],
+          [message, lower],
+          [msgHex, lower],
+          [msgHex, checksum],
+        ];
 
-    if (isPhantom) {
+    let lastErr = null;
+    for (let i = 0; i < attempts.length; i++) {
       try {
-        return await trySign([msgHex, addr]);
-      } catch (e1) {
-        const t = ((e1 && e1.message) || String(e1)).toLowerCase();
-        if (/invalid formatting|invalid params|must provide|cannot be shown/i.test(t)) {
-          return trySign([message, addr]);
+        return await provider.request({
+          method: "personal_sign",
+          params: attempts[i],
+        });
+      } catch (e) {
+        lastErr = e;
+        // User rejected — stop, do not spam popups.
+        const code = e && (e.code || (e.error && e.error.code));
+        if (code === 4001 || /user rejected|denied|cancelled|canceled/i.test(errText(e))) {
+          throw e;
         }
-        throw e1;
+        // Format/params errors: try next shape.
+        if (isFormatError(e) || i < attempts.length - 1) {
+          continue;
+        }
+        throw e;
       }
     }
-
-    // MetaMask / others: plain string first, hex fallback.
-    try {
-      return await trySign([message, addr]);
-    } catch (e1) {
-      const t = ((e1 && e1.message) || String(e1)).toLowerCase();
-      if (/invalid formatting|invalid params|must provide|cannot be shown/i.test(t)) {
-        return trySign([msgHex, addr]);
-      }
-      throw e1;
-    }
+    throw lastErr || new Error("personal_sign failed");
   }
 
   async function waitWs(timeoutMs) {
@@ -234,13 +265,42 @@
       }
       const name = providerName(provider);
       setStatus("Connecting " + name + "…");
-      const address = await requestAccounts(provider);
+      // Prefer Phantom's own ethereum object when we think we have Phantom —
+      // window.ethereum may be a multi-provider proxy that signs badly.
+      let signProvider = provider;
+      if (
+        isPhantomProvider(provider) &&
+        window.phantom &&
+        window.phantom.ethereum &&
+        window.phantom.ethereum.request
+      ) {
+        signProvider = window.phantom.ethereum;
+      }
+      const address = await requestAccounts(signProvider);
       rememberAddress(address);
       setStatus("Challenge…");
       const ch = await window.ws.request("wallet_challenge", { address });
-      if (!ch || !ch.message) throw new Error("Empty challenge from server");
+      // Challenge may be { message } or a plain string depending on envelope.
+      const challengeMsg =
+        typeof ch === "string"
+          ? ch
+          : ch && typeof ch.message === "string"
+            ? ch.message
+            : ch && ch.data && typeof ch.data.message === "string"
+              ? ch.data.message
+              : null;
+      if (!challengeMsg) {
+        console.error("[wallet] bad challenge payload", ch);
+        throw new Error("Empty sign-in message from server");
+      }
       setStatus("Sign in " + name + "…");
-      const signature = await personalSign(provider, ch.message, address);
+      console.info("[wallet] sign", {
+        name,
+        phantom: isPhantomProvider(signProvider),
+        msgLen: challengeMsg.length,
+        msgPreview: challengeMsg.slice(0, 24),
+      });
+      const signature = await personalSign(signProvider, challengeMsg, address);
       setStatus("Signing in…");
       const destDefault = "/deals/";
       const resp = await window.ws.request("wallet_login", {

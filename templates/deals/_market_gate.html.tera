@@ -14,10 +14,16 @@
       <span class="ico ico--wallet" aria-hidden="true"></span>
       <span class="cta-label">Connect wallet</span>
     </button>
+    <button type="button" class="app-top__cta"
+            data-wallet-connect data-wallet-prefer="metamask"
+            data-redirect-after="{{ gate_redirect }}">
+      MetaMask
+    </button>
   </p>
   <p class="app-ctl__hint">
     About the product and how the oracle works stay public —
     <a href="/about/">About</a> · <a href="/oracle/">How it works</a>.
+    If Phantom fails to open the sign popup, use MetaMask.
   </p>
   {% elif need_identity %}
   <p class="market-gate__lead">
