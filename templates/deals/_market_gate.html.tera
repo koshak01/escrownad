@@ -10,20 +10,15 @@
   </p>
   <p class="market-gate__actions">
     <button type="button" class="app-top__cta app-top__cta--solid"
-            data-wallet-connect data-redirect-after="{{ gate_redirect }}">
-      <span class="ico ico--wallet" aria-hidden="true"></span>
-      <span class="cta-label">Connect wallet</span>
-    </button>
-    <button type="button" class="app-top__cta"
-            data-wallet-connect data-wallet-prefer="metamask"
+            data-wallet-connect data-wallet-prefer="phantom"
             data-redirect-after="{{ gate_redirect }}">
-      MetaMask
+      <span class="ico ico--wallet" aria-hidden="true"></span>
+      <span class="cta-label">Connect Phantom</span>
     </button>
   </p>
   <p class="app-ctl__hint">
     About the product and how the oracle works stay public —
     <a href="/about/">About</a> · <a href="/oracle/">How it works</a>.
-    If Phantom fails to open the sign popup, use MetaMask.
   </p>
   {% elif need_identity %}
   <p class="market-gate__lead">
@@ -36,12 +31,15 @@
       Get verified identity
     </a>
     <button type="button" class="app-top__cta"
-            data-wallet-connect data-redirect-after="{{ gate_redirect }}">
-      I already verified — reconnect
+            data-wallet-connect data-wallet-prefer="phantom"
+            data-redirect-after="{{ gate_redirect }}">
+      I already verified — reconnect Phantom
     </button>
   </p>
   <p class="app-ctl__hint">
-    Verification runs on Cleanverse. When you are done, come back and connect the same wallet again.
+    Verification is on Cleanverse (opens only if you click the link).
+    When done, come back here and reconnect the <strong>same</strong> Phantom wallet —
+    we do not auto-redirect you away from EscrowNad.
   </p>
   {% endif %}
 </section>

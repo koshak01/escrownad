@@ -1,12 +1,16 @@
-//! EVM wallet sign-in (Monad / MetaMask).
+//! EVM wallet sign-in (Phantom / MetaMask / any EIP-1193).
 //!
-//! Flow (like tidex6, but ECDSA personal_sign):
+//! Flow:
 //! 1. Client: eth_requestAccounts → address
-//! 2. `wallet_challenge` → server message with nonce (bound to session + address)
-//! 3. Client: personal_sign(message, address)
+//! 2. `wallet_challenge` → nonce (bound to session + address)
+//! 3. Client prefers `eth_signTypedData_v4` (EIP-712 Login); falls back to
+//!    `personal_sign` of the nonce. Phantom EVM often refuses personal_sign
+//!    with "invalid formatting" while typed data works.
 //! 4. `wallet_login` → ecrecover, find_or_create user, Redis session + conn auth
 //!
-//! Password login stays primary (forge modal). Wallet is the second path.
+//! We never auto-redirect to Cleanverse magiclink after login — that page has
+//! its own wallet UI we do not control. CVI is checked here; the market gate
+//! shows a link if the identity is missing.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -34,14 +38,30 @@ pub struct ChallengeParams {
 
 #[derive(Debug, Serialize)]
 pub struct ChallengeResp {
+    /// Plain nonce string — also the personal_sign payload when that path is used.
     pub message: String,
+    /// Same nonce, named explicitly for EIP-712 clients.
+    pub nonce: String,
+    /// Suggested primary method for the client: `typed` (EIP-712).
+    pub prefer: &'static str,
+    /// Monad testnet chain id — used in the EIP-712 domain.
+    pub chain_id: u64,
 }
+
+/// Default chain id in the EIP-712 domain (Monad testnet).
+pub const LOGIN_CHAIN_ID: u64 = 10143;
 
 #[derive(Debug, Deserialize)]
 pub struct WalletLoginParams {
     pub address: String,
-    /// 0x-prefixed 65-byte personal_sign signature (r||s||v).
+    /// 0x-prefixed 65-byte signature (r||s||v).
     pub signature: String,
+    /// `typed` = eth_signTypedData_v4 (EIP-712 Login); anything else = personal_sign.
+    #[serde(default)]
+    pub sign_kind: Option<String>,
+    /// chainId the client put in the EIP-712 domain (default LOGIN_CHAIN_ID).
+    #[serde(default)]
+    pub chain_id: Option<u64>,
     #[serde(default)]
     pub redirect_after: Option<String>,
 }
@@ -159,6 +179,99 @@ fn eth_signed_message_hash(message: &str) -> [u8; 32] {
     keccak256(&buf)
 }
 
+/// EIP-712 digest for our Login typed data (must match the client JSON exactly).
+///
+/// ```text
+/// domain: { name: "EscrowNad", version: "1", chainId }
+/// types:  Login(address wallet, string nonce)
+/// ```
+fn eip712_login_digest(wallet: &str, nonce: &str, chain_id: u64) -> Result<[u8; 32], String> {
+    let wallet = normalize_address(wallet)?;
+    let addr_hex = wallet
+        .strip_prefix("0x")
+        .ok_or_else(|| "bad wallet".to_string())?;
+    let addr_bytes = hex::decode(addr_hex).map_err(|_| "bad wallet hex".to_string())?;
+    if addr_bytes.len() != 20 {
+        return Err("wallet must be 20 bytes".into());
+    }
+
+    // type hashes
+    let domain_type_hash = keccak256(
+        b"EIP712Domain(string name,string version,uint256 chainId)",
+    );
+    let login_type_hash = keccak256(b"Login(address wallet,string nonce)");
+
+    // domain separator
+    let mut domain_data = Vec::with_capacity(32 * 4);
+    domain_data.extend_from_slice(&domain_type_hash);
+    domain_data.extend_from_slice(&keccak256(b"EscrowNad"));
+    domain_data.extend_from_slice(&keccak256(b"1"));
+    let mut chain_pad = [0u8; 32];
+    chain_pad[24..].copy_from_slice(&chain_id.to_be_bytes());
+    domain_data.extend_from_slice(&chain_pad);
+    let domain_sep = keccak256(&domain_data);
+
+    // struct hash
+    let mut struct_data = Vec::with_capacity(32 * 3);
+    struct_data.extend_from_slice(&login_type_hash);
+    let mut addr_pad = [0u8; 32];
+    addr_pad[12..].copy_from_slice(&addr_bytes);
+    struct_data.extend_from_slice(&addr_pad);
+    struct_data.extend_from_slice(&keccak256(nonce.as_bytes()));
+    let struct_hash = keccak256(&struct_data);
+
+    // final digest
+    let mut buf = Vec::with_capacity(2 + 32 + 32);
+    buf.extend_from_slice(&[0x19, 0x01]);
+    buf.extend_from_slice(&domain_sep);
+    buf.extend_from_slice(&struct_hash);
+    Ok(keccak256(&buf))
+}
+
+/// Recover address + pubkey from an EIP-712 Login signature.
+fn recover_typed_login(
+    wallet: &str,
+    nonce: &str,
+    chain_id: u64,
+    signature_hex: &str,
+) -> Result<(String, String), String> {
+    let digest = eip712_login_digest(wallet, nonce, chain_id)?;
+    recover_from_prehash(&digest, signature_hex)
+}
+
+fn recover_from_prehash(
+    msg_hash: &[u8; 32],
+    signature_hex: &str,
+) -> Result<(String, String), String> {
+    let sig_raw = parse_sig_hex(signature_hex)?;
+    let mut v = sig_raw[64];
+    if v >= 27 {
+        v -= 27;
+    }
+    if v > 1 {
+        return Err("invalid signature v".into());
+    }
+    let recovery_id = RecoveryId::try_from(v).map_err(|_| "invalid recovery id".to_string())?;
+    let sig = K256Signature::from_slice(&sig_raw[..64])
+        .map_err(|_| "invalid signature r||s".to_string())?;
+
+    let vk = VerifyingKey::recover_from_prehash(msg_hash, &sig, recovery_id)
+        .map_err(|_| "signature does not match this wallet".to_string())?;
+
+    let point = vk.to_encoded_point(false);
+    let uncompressed = point.as_bytes();
+    if uncompressed.len() != 65 {
+        return Err("unexpected public key length".into());
+    }
+    let hash = keccak256(&uncompressed[1..]);
+    let addr = &hash[12..];
+    let compressed = vk.to_encoded_point(true);
+    Ok((
+        format!("0x{}", hex::encode(addr)),
+        format!("0x{}", hex::encode(compressed.as_bytes())),
+    ))
+}
+
 /// Recovers the address from a `personal_sign` signature.
 pub fn recover_address(message: &str, signature_hex: &str) -> Result<String, String> {
     Ok(recover_address_and_pubkey(message, signature_hex)?.0)
@@ -183,35 +296,8 @@ pub fn recover_address_and_pubkey(
     message: &str,
     signature_hex: &str,
 ) -> Result<(String, String), String> {
-    let sig_raw = parse_sig_hex(signature_hex)?;
-    let mut v = sig_raw[64];
-    if v >= 27 {
-        v -= 27;
-    }
-    if v > 1 {
-        return Err("invalid signature v".into());
-    }
-    let recovery_id = RecoveryId::try_from(v).map_err(|_| "invalid recovery id".to_string())?;
-    let sig = K256Signature::from_slice(&sig_raw[..64])
-        .map_err(|_| "invalid signature r||s".to_string())?;
-
     let msg_hash = eth_signed_message_hash(message);
-    let vk = VerifyingKey::recover_from_prehash(&msg_hash, &sig, recovery_id)
-        .map_err(|_| "signature does not match this wallet".to_string())?;
-
-    let point = vk.to_encoded_point(false);
-    let uncompressed = point.as_bytes(); // 0x04 || x || y
-    if uncompressed.len() != 65 {
-        return Err("unexpected public key length".into());
-    }
-    let hash = keccak256(&uncompressed[1..]);
-    let addr = &hash[12..];
-    // compressed form (0x02/0x03 || x) — smaller, and what crypto libraries expect
-    let compressed = vk.to_encoded_point(true);
-    Ok((
-        format!("0x{}", hex::encode(addr)),
-        format!("0x{}", hex::encode(compressed.as_bytes())),
-    ))
+    recover_from_prehash(&msg_hash, signature_hex)
 }
 
 fn parse_sig_hex(signature_hex: &str) -> Result<[u8; 65], String> {
@@ -238,7 +324,12 @@ pub async fn wallet_challenge<C: WsConnAuth>(
         .ok_or_else(|| "session_id not set".to_string())?
         .to_string();
     let message = challenges.issue(&session_id, &params.address).await?;
-    Ok(ChallengeResp { message })
+    Ok(ChallengeResp {
+        nonce: message.clone(),
+        message,
+        prefer: "typed",
+        chain_id: LOGIN_CHAIN_ID,
+    })
 }
 
 pub async fn wallet_login<C: WsConnAuth>(
@@ -258,7 +349,18 @@ pub async fn wallet_login<C: WsConnAuth>(
         return Err("this sign-in was started for a different wallet".into());
     }
 
-    let (recovered, pubkey) = recover_address_and_pubkey(&message, &params.signature)?;
+    let kind = params
+        .sign_kind
+        .as_deref()
+        .unwrap_or("personal")
+        .trim()
+        .to_ascii_lowercase();
+    let (recovered, pubkey) = if kind == "typed" || kind == "eip712" {
+        let chain_id = params.chain_id.unwrap_or(LOGIN_CHAIN_ID);
+        recover_typed_login(&address, &message, chain_id, &params.signature)?
+    } else {
+        recover_address_and_pubkey(&message, &params.signature)?
+    };
     if recovered != address {
         return Err("signature does not match this wallet".into());
     }

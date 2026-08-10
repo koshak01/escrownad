@@ -143,11 +143,49 @@
   }
 
   /**
-   * personal_sign — try every common encoding Phantom/MetaMask accept.
-   *
-   * Server ecrecover always uses the original UTF-8 challenge string (not hex).
-   * Phantom is known to reject some shapes with "invalid formatting" while
-   * accepting another; we do not guess — we try until one opens the popup.
+   * EIP-712 Login typed data — Phantom EVM handles this reliably.
+   * personal_sign often dies with "invalid formatting" / 登录失败 on Phantom.
+   * Must match server eip712_login_digest exactly.
+   */
+  function buildLoginTypedData(address, nonce, chainId) {
+    return {
+      types: {
+        EIP712Domain: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "chainId", type: "uint256" },
+        ],
+        Login: [
+          { name: "wallet", type: "address" },
+          { name: "nonce", type: "string" },
+        ],
+      },
+      primaryType: "Login",
+      domain: {
+        name: "EscrowNad",
+        version: "1",
+        chainId: Number(chainId) || 10143,
+      },
+      message: {
+        wallet: address,
+        nonce: String(nonce),
+      },
+    };
+  }
+
+  async function signTypedLogin(provider, address, nonce, chainId) {
+    const typed = buildLoginTypedData(address, nonce, chainId);
+    const payload = JSON.stringify(typed);
+    // EIP-1193: [address, typedDataJson]
+    return provider.request({
+      method: "eth_signTypedData_v4",
+      params: [address, payload],
+    });
+  }
+
+  /**
+   * personal_sign fallback — try common encodings if typed data is unavailable.
+   * Server ecrecover uses the original UTF-8 nonce string (not hex).
    */
   async function personalSign(provider, message, address) {
     if (typeof message !== "string" || !message) {
@@ -158,7 +196,6 @@
     const msgHex = utf8ToHex(message);
     const phantom = isPhantomProvider(provider);
 
-    // Each entry: [data, from]
     const attempts = phantom
       ? [
           [msgHex, lower],
@@ -182,12 +219,10 @@
         });
       } catch (e) {
         lastErr = e;
-        // User rejected — stop, do not spam popups.
         const code = e && (e.code || (e.error && e.error.code));
         if (code === 4001 || /user rejected|denied|cancelled|canceled/i.test(errText(e))) {
           throw e;
         }
-        // Format/params errors: try next shape.
         if (isFormatError(e) || i < attempts.length - 1) {
           continue;
         }
@@ -195,6 +230,34 @@
       }
     }
     throw lastErr || new Error("personal_sign failed");
+  }
+
+  /**
+   * Sign the login challenge: EIP-712 first (Phantom-friendly), then personal_sign.
+   * Returns { signature, sign_kind, chain_id }.
+   */
+  async function signLogin(provider, address, challenge) {
+    const nonce =
+      (challenge && (challenge.nonce || challenge.message)) ||
+      (typeof challenge === "string" ? challenge : "");
+    if (!nonce) throw new Error("Empty sign-in nonce from server");
+    const chainId = (challenge && challenge.chain_id) || 10143;
+
+    // 1) Typed data — primary path for Phantom
+    try {
+      const signature = await signTypedLogin(provider, address, nonce, chainId);
+      return { signature, sign_kind: "typed", chain_id: chainId, nonce };
+    } catch (e1) {
+      const code = e1 && (e1.code || (e1.error && e1.error.code));
+      if (code === 4001 || /user rejected|denied|cancelled|canceled/i.test(errText(e1))) {
+        throw e1;
+      }
+      console.warn("[wallet] eth_signTypedData_v4 failed, trying personal_sign", e1);
+    }
+
+    // 2) personal_sign fallback
+    const signature = await personalSign(provider, nonce, address);
+    return { signature, sign_kind: "personal", chain_id: chainId, nonce };
   }
 
   async function waitWs(timeoutMs) {
@@ -260,13 +323,13 @@
       await waitWs(8000);
       const provider = getProvider(prefer);
       if (!provider) {
-        window.open("https://phantom.app/", "_blank", "noopener");
-        throw new Error("Install Phantom, MetaMask, or another EVM wallet");
+        // Do not open external sites during connect — stay on EscrowNad.
+        throw new Error("Install Phantom (EVM enabled) or another EVM wallet");
       }
       const name = providerName(provider);
       setStatus("Connecting " + name + "…");
-      // Prefer Phantom's own ethereum object when we think we have Phantom —
-      // window.ethereum may be a multi-provider proxy that signs badly.
+      // Prefer Phantom's own ethereum object — window.ethereum may be a proxy
+      // that signs badly or routes to the wrong chain.
       let signProvider = provider;
       if (
         isPhantomProvider(provider) &&
@@ -280,32 +343,34 @@
       rememberAddress(address);
       setStatus("Challenge…");
       const ch = await window.ws.request("wallet_challenge", { address });
-      // Challenge may be { message } or a plain string depending on envelope.
-      const challengeMsg =
-        typeof ch === "string"
+      const challenge =
+        ch && typeof ch === "object"
           ? ch
-          : ch && typeof ch.message === "string"
-            ? ch.message
-            : ch && ch.data && typeof ch.data.message === "string"
-              ? ch.data.message
-              : null;
-      if (!challengeMsg) {
+          : typeof ch === "string"
+            ? { message: ch, nonce: ch }
+            : null;
+      if (!challenge || !(challenge.nonce || challenge.message)) {
         console.error("[wallet] bad challenge payload", ch);
-        throw new Error("Empty sign-in message from server");
+        throw new Error("Empty sign-in challenge from server");
       }
       setStatus("Sign in " + name + "…");
       console.info("[wallet] sign", {
         name,
         phantom: isPhantomProvider(signProvider),
-        msgLen: challengeMsg.length,
-        msgPreview: challengeMsg.slice(0, 24),
+        prefer: challenge.prefer,
+        nonce: String(challenge.nonce || challenge.message).slice(0, 16),
       });
-      const signature = await personalSign(signProvider, challengeMsg, address);
+      // EIP-712 first (works on Phantom); personal_sign only as fallback.
+      // Never jump to Cleanverse magiclink from here — that page has its own
+      // broken-for-us wallet UI; CVI link stays on our market gate only.
+      const signed = await signLogin(signProvider, address, challenge);
       setStatus("Signing in…");
       const destDefault = "/deals/";
       const resp = await window.ws.request("wallet_login", {
         address,
-        signature,
+        signature: signed.signature,
+        sign_kind: signed.sign_kind,
+        chain_id: signed.chain_id,
         redirect_after: redirectAfter || destDefault,
       });
       if (!resp || !resp.ok) throw new Error("Sign-in rejected");
@@ -314,19 +379,14 @@
         : "Signed in with " + name;
       toast("success", msg);
       setStatus(msg);
-      // Deals require a Cleanverse verified identity on both sides — the escrow
-      // contract itself refuses to fund otherwise. Say so now, while the person
-      // is still here, rather than letting them discover it on a failed
-      // transaction. `verified === null` means we could not ask; stay quiet then.
       if (resp.verified === false && resp.verify_url) {
         rememberIdentity(false, resp.verify_url);
         toast(
           "warning",
-          "This wallet has no verified identity yet — deals require one",
+          "Signed in. A Cleanverse identity is still required to open the market — use Get verified on the next screen.",
         );
-        // Open Cleanverse self-service; the market page will still show the gate
-        // until they reconnect with a valid CVI.
-        window.open(resp.verify_url, "_blank", "noopener");
+        // Stay on our site. Do NOT window.open magiclink (user stays in control;
+        // that third-party page has its own wallet sign UI).
       } else if (resp.verified === true) {
         rememberIdentity(true, null);
       }
