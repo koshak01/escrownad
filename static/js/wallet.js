@@ -109,10 +109,10 @@
       return "Wallet not available — install Phantom or MetaMask and enable EVM";
     }
     if (/invalid formatting|cannot be shown|登录失败/i.test(text)) {
-      return "Phantom refused the sign request. Hard-refresh (Ctrl+Shift+R) and try Connect Phantom again. Sign-in does not require Monad if the network switch fails.";
+      return "Phantom refused personal_sign. Hard-refresh (Ctrl+Shift+R), then Connect Phantom again.";
     }
     if (/caipnetwork|ethersadapter/i.test(text)) {
-      return "Phantom could not switch network (internal wallet bug). Try Connect again — we will sign without forcing Monad.";
+      return "Phantom network error (ignore Monad). Hard-refresh and Connect again — we no longer switch networks on login.";
     }
     if (/User rejected|user closed/i.test(text)) {
       return "Connection cancelled";
@@ -145,193 +145,66 @@
     return /invalid formatting|invalid params|must provide|cannot be shown|登录失败|格式/.test(t);
   }
 
-  const MONAD_TESTNET = {
-    chainId: "0x279f", // 10143
-    chainIdDec: 10143,
-    chainName: "Monad Testnet",
-    nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-    rpcUrls: ["https://testnet-rpc.monad.xyz"],
-    blockExplorerUrls: ["https://testnet.monadexplorer.com"],
-  };
-
   /**
-   * Best-effort: put the wallet on Monad testnet.
+   * Login signature — MINIMAL path for Phantom.
    *
-   * Login is a signature, not a tx — it does NOT require Monad to succeed.
-   * Forcing wallet_addEthereumChain on some Phantom builds throws
-   * "EthersAdapter:connect - could not find the caipNetwork to connect"
-   * (CAIP list has no eip155:10143). So we try a soft switch only; any
-   * failure is ignored and we sign on whatever chain the wallet is on.
+   * Do NOT call wallet_switchEthereumChain / wallet_addEthereumChain /
+   * eth_signTypedData_v4 with Monad chainId. On current Phantom builds those
+   * hit "EthersAdapter:connect - could not find the caipNetwork to connect"
+   * because eip155:10143 is missing from their CAIP list. Login is only a
+   * signature; network is irrelevant.
    *
-   * # Returns
-   * * decimal chain id the wallet ends up on (or 10143 if unknown)
+   * Phantom docs (signing-a-message):
+   *   personal_sign params: [hexUtf8Message, fromAddress, 'Example password']
+   * Server ecrecover uses the plain UTF-8 challenge string (not the hex form).
    */
-  async function ensureMonadTestnet(provider) {
-    let currentDec = MONAD_TESTNET.chainIdDec;
-    try {
-      const current = await provider.request({ method: "eth_chainId" });
-      if (current != null) {
-        currentDec = parseInt(String(current), 16) || currentDec;
-      }
-      if (String(current).toLowerCase() === MONAD_TESTNET.chainId) {
-        return currentDec;
-      }
-    } catch (_) {
-      /* unknown chain — still try switch, then sign anyway */
+  async function signLogin(provider, address, challenge) {
+    const message =
+      (challenge && (challenge.message || challenge.nonce)) ||
+      (typeof challenge === "string" ? challenge : "");
+    if (!message || typeof message !== "string") {
+      throw new Error("Empty sign-in challenge from server");
     }
 
-    // Soft switch only (no addEthereumChain — that path hits Phantom CAIP errors).
-    try {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: MONAD_TESTNET.chainId }],
-      });
-      return MONAD_TESTNET.chainIdDec;
-    } catch (e) {
-      console.warn(
-        "[wallet] Monad switch skipped (sign-in does not need it):",
-        (e && e.message) || e,
-      );
-      return currentDec;
-    }
-  }
-
-  /**
-   * EIP-712 Login — matches server eip712_login_digest.
-   * verifyingContract is the zero address (no on-chain verifier); included so
-   * the domain shape matches what Phantom documents for typed data.
-   */
-  function buildLoginTypedData(address, nonce, chainId) {
-    const cid = Number(chainId) || MONAD_TESTNET.chainIdDec;
-    return {
-      types: {
-        EIP712Domain: [
-          { name: "name", type: "string" },
-          { name: "version", type: "string" },
-          { name: "chainId", type: "uint256" },
-          { name: "verifyingContract", type: "address" },
-        ],
-        Login: [
-          { name: "wallet", type: "address" },
-          { name: "nonce", type: "string" },
-        ],
-      },
-      primaryType: "Login",
-      domain: {
-        name: "EscrowNad",
-        version: "1",
-        chainId: cid,
-        verifyingContract: "0x0000000000000000000000000000000000000000",
-      },
-      message: {
-        wallet: address,
-        nonce: String(nonce),
-      },
-    };
-  }
-
-  async function signTypedLogin(provider, address, nonce, chainId) {
-    const typed = buildLoginTypedData(address, nonce, chainId);
-    const payload = JSON.stringify(typed);
-    return provider.request({
-      method: "eth_signTypedData_v4",
-      params: [address, payload],
-    });
-  }
-
-  /**
-   * personal_sign — Phantom docs use THREE params: [hexMsg, from, password].
-   * Two-param MetaMask style is what we had; Phantom then answers
-   * "invalid formatting" / Chinese 登录失败.
-   * Server ecrecover uses the original UTF-8 nonce (not the hex wrapper).
-   */
-  async function personalSign(provider, message, address) {
-    if (typeof message !== "string" || !message) {
-      throw new Error("Empty sign-in message from server");
-    }
     const msgHex = utf8ToHex(message);
-    const phantom = isPhantomProvider(provider);
     const from = address;
 
-    // Phantom official example (docs):
-    //   params: [msgHex, from, 'Example password']
-    const attempts = phantom
-      ? [
-          [msgHex, from, "EscrowNad"],
-          [msgHex, from, ""],
-          [msgHex, from],
-          [message, from, "EscrowNad"],
-          [message, from],
-        ]
-      : [
-          [message, from],
-          [msgHex, from],
-          [msgHex, from, ""],
-        ];
+    // Exactly Phantom's documented shape first; then a few safe variants.
+    const attempts = [
+      [msgHex, from, "Example password"],
+      [msgHex, from, "EscrowNad"],
+      [msgHex, from, ""],
+      [msgHex, from],
+    ];
 
     let lastErr = null;
     for (let i = 0; i < attempts.length; i++) {
       try {
-        return await provider.request({
+        console.info("[wallet] personal_sign attempt", i, {
+          params: attempts[i].length,
+          msgLen: message.length,
+        });
+        const signature = await provider.request({
           method: "personal_sign",
           params: attempts[i],
         });
+        return {
+          signature,
+          sign_kind: "personal",
+          chain_id: 10143,
+          nonce: message,
+        };
       } catch (e) {
         lastErr = e;
+        console.warn("[wallet] personal_sign attempt failed", i, e);
         const code = e && (e.code || (e.error && e.error.code));
         if (code === 4001 || /user rejected|denied|cancelled|canceled/i.test(errText(e))) {
           throw e;
         }
-        if (isFormatError(e) || i < attempts.length - 1) {
-          continue;
-        }
-        throw e;
+        // Keep trying other param shapes; do not rethrow CAIP mid-loop.
       }
     }
     throw lastErr || new Error("personal_sign failed");
-  }
-
-  /**
-   * Sign login: optional Monad switch → EIP-712 (chainId = wallet's actual
-   * chain) → personal_sign. Never abort on network/CAIP errors.
-   */
-  async function signLogin(provider, address, challenge) {
-    const nonce =
-      (challenge && (challenge.nonce || challenge.message)) ||
-      (typeof challenge === "string" ? challenge : "");
-    if (!nonce) throw new Error("Empty sign-in nonce from server");
-
-    // Prefer whatever chain the wallet is on after a soft switch attempt.
-    // EIP-712 domain must use the same chainId the wallet signs with.
-    let chainId = await ensureMonadTestnet(provider);
-    try {
-      const hex = await provider.request({ method: "eth_chainId" });
-      if (hex != null) {
-        const dec = parseInt(String(hex), 16);
-        if (dec) chainId = dec;
-      }
-    } catch (_) {
-      /* keep chainId from ensure */
-    }
-
-    try {
-      const signature = await signTypedLogin(provider, address, nonce, chainId);
-      return { signature, sign_kind: "typed", chain_id: chainId, nonce };
-    } catch (e1) {
-      const code = e1 && (e1.code || (e1.error && e1.error.code));
-      if (code === 4001 || /user rejected|denied|cancelled|canceled/i.test(errText(e1))) {
-        throw e1;
-      }
-      // CAIP / EthersAdapter noise from Phantom — fall through to personal_sign
-      if (/caipnetwork|ethersadapter/i.test(errText(e1))) {
-        console.warn("[wallet] typed data hit wallet network adapter bug, personal_sign", e1);
-      } else {
-        console.warn("[wallet] eth_signTypedData_v4 failed, trying personal_sign", e1);
-      }
-    }
-
-    const signature = await personalSign(provider, nonce, address);
-    return { signature, sign_kind: "personal", chain_id: chainId, nonce };
   }
 
   async function waitWs(timeoutMs) {
@@ -434,9 +307,8 @@
         prefer: challenge.prefer,
         nonce: String(challenge.nonce || challenge.message).slice(0, 16),
       });
-      // EIP-712 first (works on Phantom); personal_sign only as fallback.
-      // Never jump to Cleanverse magiclink from here — that page has its own
-      // broken-for-us wallet UI; CVI link stays on our market gate only.
+      // personal_sign only — no network switch, no EIP-712 (those hit Phantom CAIP).
+      // Never open Cleanverse magiclink from here.
       const signed = await signLogin(signProvider, address, challenge);
       setStatus("Signing in…");
       const destDefault = "/deals/";

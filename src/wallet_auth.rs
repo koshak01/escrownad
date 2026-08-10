@@ -104,12 +104,9 @@ impl WalletChallenges {
     pub async fn issue(&self, session_id: &str, address: &str) -> Result<String, String> {
         let address = normalize_address(address)?;
         let nonce = new_nonce()?;
-        // Pure hex nonce only. Phantom EVM is extremely picky about personal_sign
-        // display payloads ("invalid formatting" / Chinese 登录失败). Multi-line
-        // and even short prose with spaces have failed in the field; a 32-char
-        // hex string is the safest message body. Client tries hex + plain
-        // encodings; server ecrecover always uses this exact UTF-8 string.
-        let message = nonce;
+        // Human-readable one-liner (Phantom docs use plain English, hex-encoded
+        // on the wire). No chain switch is required for personal_sign.
+        let message = format!("Sign in to EscrowNad. Nonce: {nonce}");
 
         let mut map = self.pending.lock().await;
         prune(&mut map);
