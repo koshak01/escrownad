@@ -109,7 +109,10 @@
       return "Wallet not available — install Phantom or MetaMask and enable EVM";
     }
     if (/invalid formatting|cannot be shown|登录失败/i.test(text)) {
-      return "Phantom refused the sign request. In Phantom: Settings → Developer → Testnet Mode ON, pick Monad Testnet, then hard-refresh this page (Ctrl+Shift+R) and try Connect Phantom again.";
+      return "Phantom refused the sign request. Hard-refresh (Ctrl+Shift+R) and try Connect Phantom again. Sign-in does not require Monad if the network switch fails.";
+    }
+    if (/caipnetwork|ethersadapter/i.test(text)) {
+      return "Phantom could not switch network (internal wallet bug). Try Connect again — we will sign without forcing Monad.";
     }
     if (/User rejected|user closed/i.test(text)) {
       return "Connection cancelled";
@@ -152,44 +155,44 @@
   };
 
   /**
-   * Switch Phantom/MetaMask onto Monad testnet before signing.
-   * Signing while stuck on Solana-only or wrong EVM chain is a common
-   * source of opaque "invalid formatting" / 登录失败 errors.
+   * Best-effort: put the wallet on Monad testnet.
+   *
+   * Login is a signature, not a tx — it does NOT require Monad to succeed.
+   * Forcing wallet_addEthereumChain on some Phantom builds throws
+   * "EthersAdapter:connect - could not find the caipNetwork to connect"
+   * (CAIP list has no eip155:10143). So we try a soft switch only; any
+   * failure is ignored and we sign on whatever chain the wallet is on.
+   *
+   * # Returns
+   * * decimal chain id the wallet ends up on (or 10143 if unknown)
    */
   async function ensureMonadTestnet(provider) {
-    const want = MONAD_TESTNET.chainId;
+    let currentDec = MONAD_TESTNET.chainIdDec;
     try {
       const current = await provider.request({ method: "eth_chainId" });
-      if (String(current).toLowerCase() === want) return;
+      if (current != null) {
+        currentDec = parseInt(String(current), 16) || currentDec;
+      }
+      if (String(current).toLowerCase() === MONAD_TESTNET.chainId) {
+        return currentDec;
+      }
     } catch (_) {
-      /* continue and try switch */
+      /* unknown chain — still try switch, then sign anyway */
     }
+
+    // Soft switch only (no addEthereumChain — that path hits Phantom CAIP errors).
     try {
       await provider.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: want }],
+        params: [{ chainId: MONAD_TESTNET.chainId }],
       });
-      return;
+      return MONAD_TESTNET.chainIdDec;
     } catch (e) {
-      const code = e && (e.code || (e.error && e.error.code));
-      // 4902 — chain not added yet
-      if (code === 4902 || code === -32603 || /unrecognized chain|not added/i.test(errText(e))) {
-        await provider.request({
-          method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: MONAD_TESTNET.chainId,
-              chainName: MONAD_TESTNET.chainName,
-              nativeCurrency: MONAD_TESTNET.nativeCurrency,
-              rpcUrls: MONAD_TESTNET.rpcUrls,
-              blockExplorerUrls: MONAD_TESTNET.blockExplorerUrls,
-            },
-          ],
-        });
-        return;
-      }
-      // User rejected switch — still try to sign; may fail later.
-      console.warn("[wallet] could not switch to Monad testnet", e);
+      console.warn(
+        "[wallet] Monad switch skipped (sign-in does not need it):",
+        (e && e.message) || e,
+      );
+      return currentDec;
     }
   }
 
@@ -289,16 +292,27 @@
   }
 
   /**
-   * Sign login: switch to Monad → EIP-712 → personal_sign (Phantom 3-arg).
+   * Sign login: optional Monad switch → EIP-712 (chainId = wallet's actual
+   * chain) → personal_sign. Never abort on network/CAIP errors.
    */
   async function signLogin(provider, address, challenge) {
     const nonce =
       (challenge && (challenge.nonce || challenge.message)) ||
       (typeof challenge === "string" ? challenge : "");
     if (!nonce) throw new Error("Empty sign-in nonce from server");
-    const chainId = (challenge && challenge.chain_id) || MONAD_TESTNET.chainIdDec;
 
-    await ensureMonadTestnet(provider);
+    // Prefer whatever chain the wallet is on after a soft switch attempt.
+    // EIP-712 domain must use the same chainId the wallet signs with.
+    let chainId = await ensureMonadTestnet(provider);
+    try {
+      const hex = await provider.request({ method: "eth_chainId" });
+      if (hex != null) {
+        const dec = parseInt(String(hex), 16);
+        if (dec) chainId = dec;
+      }
+    } catch (_) {
+      /* keep chainId from ensure */
+    }
 
     try {
       const signature = await signTypedLogin(provider, address, nonce, chainId);
@@ -308,7 +322,12 @@
       if (code === 4001 || /user rejected|denied|cancelled|canceled/i.test(errText(e1))) {
         throw e1;
       }
-      console.warn("[wallet] eth_signTypedData_v4 failed, trying personal_sign", e1);
+      // CAIP / EthersAdapter noise from Phantom — fall through to personal_sign
+      if (/caipnetwork|ethersadapter/i.test(errText(e1))) {
+        console.warn("[wallet] typed data hit wallet network adapter bug, personal_sign", e1);
+      } else {
+        console.warn("[wallet] eth_signTypedData_v4 failed, trying personal_sign", e1);
+      }
     }
 
     const signature = await personalSign(provider, nonce, address);
