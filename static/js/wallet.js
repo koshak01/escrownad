@@ -109,7 +109,7 @@
       return "Wallet not available — install Phantom or MetaMask and enable EVM";
     }
     if (/invalid formatting|cannot be shown|登录失败/i.test(text)) {
-      return "Phantom could not show the sign popup. Hard-refresh (Ctrl+Shift+R), enable EVM/Testnet Mode in Phantom, or connect with MetaMask.";
+      return "Phantom refused the sign request. In Phantom: Settings → Developer → Testnet Mode ON, pick Monad Testnet, then hard-refresh this page (Ctrl+Shift+R) and try Connect Phantom again.";
     }
     if (/User rejected|user closed/i.test(text)) {
       return "Connection cancelled";
@@ -142,18 +142,71 @@
     return /invalid formatting|invalid params|must provide|cannot be shown|登录失败|格式/.test(t);
   }
 
+  const MONAD_TESTNET = {
+    chainId: "0x279f", // 10143
+    chainIdDec: 10143,
+    chainName: "Monad Testnet",
+    nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+    rpcUrls: ["https://testnet-rpc.monad.xyz"],
+    blockExplorerUrls: ["https://testnet.monadexplorer.com"],
+  };
+
   /**
-   * EIP-712 Login typed data — Phantom EVM handles this reliably.
-   * personal_sign often dies with "invalid formatting" / 登录失败 on Phantom.
-   * Must match server eip712_login_digest exactly.
+   * Switch Phantom/MetaMask onto Monad testnet before signing.
+   * Signing while stuck on Solana-only or wrong EVM chain is a common
+   * source of opaque "invalid formatting" / 登录失败 errors.
+   */
+  async function ensureMonadTestnet(provider) {
+    const want = MONAD_TESTNET.chainId;
+    try {
+      const current = await provider.request({ method: "eth_chainId" });
+      if (String(current).toLowerCase() === want) return;
+    } catch (_) {
+      /* continue and try switch */
+    }
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: want }],
+      });
+      return;
+    } catch (e) {
+      const code = e && (e.code || (e.error && e.error.code));
+      // 4902 — chain not added yet
+      if (code === 4902 || code === -32603 || /unrecognized chain|not added/i.test(errText(e))) {
+        await provider.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: MONAD_TESTNET.chainId,
+              chainName: MONAD_TESTNET.chainName,
+              nativeCurrency: MONAD_TESTNET.nativeCurrency,
+              rpcUrls: MONAD_TESTNET.rpcUrls,
+              blockExplorerUrls: MONAD_TESTNET.blockExplorerUrls,
+            },
+          ],
+        });
+        return;
+      }
+      // User rejected switch — still try to sign; may fail later.
+      console.warn("[wallet] could not switch to Monad testnet", e);
+    }
+  }
+
+  /**
+   * EIP-712 Login — matches server eip712_login_digest.
+   * verifyingContract is the zero address (no on-chain verifier); included so
+   * the domain shape matches what Phantom documents for typed data.
    */
   function buildLoginTypedData(address, nonce, chainId) {
+    const cid = Number(chainId) || MONAD_TESTNET.chainIdDec;
     return {
       types: {
         EIP712Domain: [
           { name: "name", type: "string" },
           { name: "version", type: "string" },
           { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
         ],
         Login: [
           { name: "wallet", type: "address" },
@@ -164,7 +217,8 @@
       domain: {
         name: "EscrowNad",
         version: "1",
-        chainId: Number(chainId) || 10143,
+        chainId: cid,
+        verifyingContract: "0x0000000000000000000000000000000000000000",
       },
       message: {
         wallet: address,
@@ -176,7 +230,6 @@
   async function signTypedLogin(provider, address, nonce, chainId) {
     const typed = buildLoginTypedData(address, nonce, chainId);
     const payload = JSON.stringify(typed);
-    // EIP-1193: [address, typedDataJson]
     return provider.request({
       method: "eth_signTypedData_v4",
       params: [address, payload],
@@ -184,30 +237,33 @@
   }
 
   /**
-   * personal_sign fallback — try common encodings if typed data is unavailable.
-   * Server ecrecover uses the original UTF-8 nonce string (not hex).
+   * personal_sign — Phantom docs use THREE params: [hexMsg, from, password].
+   * Two-param MetaMask style is what we had; Phantom then answers
+   * "invalid formatting" / Chinese 登录失败.
+   * Server ecrecover uses the original UTF-8 nonce (not the hex wrapper).
    */
   async function personalSign(provider, message, address) {
     if (typeof message !== "string" || !message) {
       throw new Error("Empty sign-in message from server");
     }
-    const checksum = address;
-    const lower = String(address).toLowerCase();
     const msgHex = utf8ToHex(message);
     const phantom = isPhantomProvider(provider);
+    const from = address;
 
+    // Phantom official example (docs):
+    //   params: [msgHex, from, 'Example password']
     const attempts = phantom
       ? [
-          [msgHex, lower],
-          [msgHex, checksum],
-          [message, lower],
-          [message, checksum],
+          [msgHex, from, "EscrowNad"],
+          [msgHex, from, ""],
+          [msgHex, from],
+          [message, from, "EscrowNad"],
+          [message, from],
         ]
       : [
-          [message, checksum],
-          [message, lower],
-          [msgHex, lower],
-          [msgHex, checksum],
+          [message, from],
+          [msgHex, from],
+          [msgHex, from, ""],
         ];
 
     let lastErr = null;
@@ -233,17 +289,17 @@
   }
 
   /**
-   * Sign the login challenge: EIP-712 first (Phantom-friendly), then personal_sign.
-   * Returns { signature, sign_kind, chain_id }.
+   * Sign login: switch to Monad → EIP-712 → personal_sign (Phantom 3-arg).
    */
   async function signLogin(provider, address, challenge) {
     const nonce =
       (challenge && (challenge.nonce || challenge.message)) ||
       (typeof challenge === "string" ? challenge : "");
     if (!nonce) throw new Error("Empty sign-in nonce from server");
-    const chainId = (challenge && challenge.chain_id) || 10143;
+    const chainId = (challenge && challenge.chain_id) || MONAD_TESTNET.chainIdDec;
 
-    // 1) Typed data — primary path for Phantom
+    await ensureMonadTestnet(provider);
+
     try {
       const signature = await signTypedLogin(provider, address, nonce, chainId);
       return { signature, sign_kind: "typed", chain_id: chainId, nonce };
@@ -255,7 +311,6 @@
       console.warn("[wallet] eth_signTypedData_v4 failed, trying personal_sign", e1);
     }
 
-    // 2) personal_sign fallback
     const signature = await personalSign(provider, nonce, address);
     return { signature, sign_kind: "personal", chain_id: chainId, nonce };
   }

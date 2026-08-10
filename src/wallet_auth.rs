@@ -182,7 +182,7 @@ fn eth_signed_message_hash(message: &str) -> [u8; 32] {
 /// EIP-712 digest for our Login typed data (must match the client JSON exactly).
 ///
 /// ```text
-/// domain: { name: "EscrowNad", version: "1", chainId }
+/// domain: { name: "EscrowNad", version: "1", chainId, verifyingContract: 0x0 }
 /// types:  Login(address wallet, string nonce)
 /// ```
 fn eip712_login_digest(wallet: &str, nonce: &str, chain_id: u64) -> Result<[u8; 32], String> {
@@ -195,20 +195,22 @@ fn eip712_login_digest(wallet: &str, nonce: &str, chain_id: u64) -> Result<[u8; 
         return Err("wallet must be 20 bytes".into());
     }
 
-    // type hashes
+    // type hashes — field order is part of the hash
     let domain_type_hash = keccak256(
-        b"EIP712Domain(string name,string version,uint256 chainId)",
+        b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
     );
     let login_type_hash = keccak256(b"Login(address wallet,string nonce)");
 
     // domain separator
-    let mut domain_data = Vec::with_capacity(32 * 4);
+    let mut domain_data = Vec::with_capacity(32 * 5);
     domain_data.extend_from_slice(&domain_type_hash);
     domain_data.extend_from_slice(&keccak256(b"EscrowNad"));
     domain_data.extend_from_slice(&keccak256(b"1"));
     let mut chain_pad = [0u8; 32];
     chain_pad[24..].copy_from_slice(&chain_id.to_be_bytes());
     domain_data.extend_from_slice(&chain_pad);
+    // verifyingContract = address(0)
+    domain_data.extend_from_slice(&[0u8; 32]);
     let domain_sep = keccak256(&domain_data);
 
     // struct hash
